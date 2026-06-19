@@ -1,0 +1,22 @@
+{
+  "mqtt": {
+    "broker_host": "localhost",
+    "broker_port": 1883
+  },
+  "topics": {
+    "temperature": "warehouse/sensors/temperature",
+    "humidity": "warehouse/sensors/humidity",
+    "co2": "warehouse/sensors/co2",
+    "occupancy": "warehouse/sensors/occupancy",
+    "battery_status": "warehouse/sensors/battery_status",
+
+    "fan_command": "warehouse/actuators/fan/command",
+    "buzzer_command": "warehouse/actuators/buzzer/command",
+    "led_command": "warehouse/actuators/led/command",
+    "shutter_command": "warehouse/actuators/shutter/command",
+
+    "risk_level": "warehouse/context/risk_level",
+    "plan": "warehouse/planning/plan",
+    "manager_notification": "warehouse/notifications/manager"
+  }
+}
