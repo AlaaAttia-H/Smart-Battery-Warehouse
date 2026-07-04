@@ -37,7 +37,7 @@ except ImportError:
     )
 
 
-BROKER = "10.63.50.207"   # Raspberry Pi IP address
+BROKER = "172.26.9.207"   # Raspberry Pi IP address
 PORT = 1883
 
 

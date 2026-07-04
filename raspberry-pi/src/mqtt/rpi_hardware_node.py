@@ -130,8 +130,6 @@ class RaspberryPiHardwareNode:
             elif topic == ACTUATOR_SHUTTER_COMMAND:
                 self.handle_shutter_command(message)
 
-            elif topic == CONTEXT_RISK_LEVEL:
-                self.handle_risk_level(message)
 
         except Exception as e:
             print(f"[MQTT ERROR] Could not handle command: {e}")
