@@ -2,16 +2,15 @@
 Raspberry Pi MQTT hardware node.
 
 """
-
 import random
 import time
 
 import paho.mqtt.client as mqtt
-import smbus2
+#import smbus2
 
-from hardware.grove_inputs import read_dht
-from hardware.grove_outputs import GroveBuzzer
-from hardware.pi_direct import DCFan, MQ2Sensor, RGBLed, Servo
+#from hardware.grove_inputs import read_dht
+#from hardware.grove_outputs import GroveBuzzer
+#from hardware.pi_direct import DCFan, MQ2Sensor, RGBLed, Servo
 
 from mqtt.topics import (
     ACTUATOR_BUZZER_COMMAND,
@@ -19,8 +18,8 @@ from mqtt.topics import (
     ACTUATOR_FAN_COMMAND,
     ACTUATOR_LED_COMMAND,
     ACTUATOR_SHUTTER_COMMAND,
-    CONTEXT_RISK_LEVEL,
     SENSOR_BATTERY_STATUS,
+    #CONTEXT_RISK_LEVEL,
     SENSOR_CO2,
     SENSOR_GAS_ALERT,
     SENSOR_HUMIDITY,
@@ -45,6 +44,18 @@ BUZZER_PIN = 3
 
 SIMULATE_MISSING_SENSORS = True
 
+#to run in simulation mode without hardware for checking notifications, set this to True
+SIMULATION_MODE = True
+
+
+if not SIMULATION_MODE:
+    import smbus2
+    from hardware.grove_inputs import read_dht
+    from hardware.grove_outputs import GroveBuzzer
+    from hardware.pi_direct import DCFan, MQ2Sensor, RGBLed, Servo
+else:
+    print("[SIMULATION] Hardware imports skipped")
+
 
 class RaspberryPiHardwareNode:
     def __init__(self, broker="localhost", port=1883, read_interval=2.0):
@@ -63,13 +74,23 @@ class RaspberryPiHardwareNode:
 
         self.simulated_battery = 100
         self.simulated_occupancy = 0
+    
+
+        
 
     def open_bus(self):
+        if SIMULATION_MODE:
+            return None
+        import smbus2
         bus = smbus2.SMBus(1)
         time.sleep(1)
         return bus
 
     def setup_hardware(self):
+        if SIMULATION_MODE:
+            print("[SIMULATION] Skipping hardware setup")
+            return
+
         print("[SYSTEM] Initialising hardware...")
 
         self.bus = self.open_bus()
@@ -82,8 +103,10 @@ class RaspberryPiHardwareNode:
         self.buzzer = GroveBuzzer(pin=BUZZER_PIN)
         self.buzzer.update_bus(self.bus)
 
-        # Safe initial state
-        self.fan.set_speed(0)
+        if SIMULATION_MODE:
+            print("[SIM] Fan OFF")
+        else:
+            self.fan.set_speed(0)
         self.servo.set_position(90)
         self.led.set_color(0, 0, 0)
         self.buzzer.stop_siren()
@@ -108,8 +131,8 @@ class RaspberryPiHardwareNode:
             print(f"[MQTT] Subscribed to {topic}")
 
         # Optional backup: the Pi can also react directly to risk level.
-        client.subscribe(CONTEXT_RISK_LEVEL)
-        print(f"[MQTT] Subscribed to {CONTEXT_RISK_LEVEL}")
+        #client.subscribe(CONTEXT_RISK_LEVEL)
+        #print(f"[MQTT] Subscribed to {CONTEXT_RISK_LEVEL}")
 
     def on_message(self, client, userdata, msg):
         topic = msg.topic
@@ -130,6 +153,9 @@ class RaspberryPiHardwareNode:
             elif topic == ACTUATOR_SHUTTER_COMMAND:
                 self.handle_shutter_command(message)
 
+            #elif topic == CONTEXT_RISK_LEVEL:
+             #self.handle_risk_level(message)
+
 
         except Exception as e:
             print(f"[MQTT ERROR] Could not handle command: {e}")
@@ -138,10 +164,16 @@ class RaspberryPiHardwareNode:
         command = command.upper()
 
         if command in ["ON", "START", "1", "TRUE"]:
-            self.fan.set_speed(100)
+            if SIMULATION_MODE:
+                print("[SIM] Fan ON")
+            else:
+                self.fan.set_speed(100)
 
         elif command in ["OFF", "STOP", "0", "FALSE"]:
-            self.fan.set_speed(0)
+            if SIMULATION_MODE:
+                print("[SIM] Fan OFF")
+            else:
+                self.fan.set_speed(0)
 
         else:
             # Allow numeric speed, for example: "50"
@@ -149,7 +181,12 @@ class RaspberryPiHardwareNode:
             self.fan.set_speed(speed)
 
     def handle_buzzer_command(self, command):
+        
         command = command.upper()
+
+        if SIMULATION_MODE:
+            print(f"[SIM] Buzzer -> {command}")
+            return
 
         if command in ["ON", "START", "SIREN", "ALARM", "1", "TRUE"]:
             self.buzzer.start_siren()
@@ -159,6 +196,9 @@ class RaspberryPiHardwareNode:
 
     def handle_led_command(self, command):
         command = command.upper()
+        if SIMULATION_MODE:
+            print(f"[SIM] LED -> {command}")
+            return
 
         colors = {
             "OFF": (0, 0, 0),
@@ -182,6 +222,10 @@ class RaspberryPiHardwareNode:
     def handle_shutter_command(self, command):
         command = command.upper()
 
+        if SIMULATION_MODE:
+            print(f"[SIM] Shutter -> {command}")
+            return
+
         if command in ["OPEN", "UP"]:
             self.servo.set_position(90)
 
@@ -195,36 +239,61 @@ class RaspberryPiHardwareNode:
             angle = float(command)
             self.servo.set_position(angle)
 
-    def handle_risk_level(self, risk_level):
-        risk_level = risk_level.upper()
+    # def handle_risk_level(self, risk_level):
+    #     risk_level = risk_level.upper()
 
-        # This is only a backup reaction.
-        # The laptop controller also sends direct actuator commands.
-        if risk_level == "HIGH":
-            self.fan.set_speed(100)
-            self.buzzer.start_siren()
-            self.led.set_color(255, 0, 0)
-            self.servo.set_position(0)
+    #     if SIMULATION_MODE:
+    #         print(f"[SIM] Risk Level -> {risk_level}")
+    #         return
 
-        elif risk_level == "MEDIUM":
-            self.fan.set_speed(100)
-            self.buzzer.stop_siren()
-            self.led.set_color(255, 70, 0)
-            self.servo.set_position(90)
+    #     # This is only a backup reaction.
+    #     # The laptop controller also sends direct actuator commands.
+    #     if risk_level == "HIGH":
+    #         if SIMULATION_MODE:
+    #             print("[SIM] Fan ON")
+    #         else:
+    #             self.fan.set_speed(100)
+                
+    #         self.buzzer.start_siren()
+    #         self.led.set_color(255, 0, 0)
+    #         self.servo.set_position(0)
 
-        elif risk_level == "LOW":
-            self.fan.set_speed(0)
-            self.buzzer.stop_siren()
-            self.led.set_color(0, 255, 0)
-            self.servo.set_position(90)
+    #     elif risk_level == "MEDIUM":
+
+    #         if SIMULATION_MODE:
+    #             print("[SIM] Fan ON")
+    #         else:
+    #             self.fan.set_speed(100)
+
+    #         self.buzzer.stop_siren()
+    #         self.led.set_color(255, 70, 0)
+    #         self.servo.set_position(90)
+
+    #     elif risk_level == "LOW":
+    #         if SIMULATION_MODE:
+    #             print("[SIM] Fan OFF")
+    #         else:
+    #             self.fan.set_speed(0)
+    #         self.buzzer.stop_siren()
+    #         self.led.set_color(0, 255, 0)
+    #         self.servo.set_position(90)
 
     def publish(self, topic, value):
-        self.client.publish(topic, str(value))
+        if self.client:
+            self.client.publish(topic, str(value))
+        else:
+            print(f"[SIMULATION MQTT] {topic} -> {value}")
 
     def publish_sensor_data(self):
         try:
-            temperature, humidity = read_dht(self.bus, DHT_PIN, DHT_TYPE)
-            gas_alert = self.mq2.is_gas_detected()
+                
+            if SIMULATION_MODE:
+                temperature = 45.0
+                humidity = 55.0
+                gas_alert = True
+            else:
+                temperature, humidity = read_dht(self.bus, DHT_PIN, DHT_TYPE)
+                gas_alert = self.mq2.is_gas_detected()
 
             co2_proxy = 1500 if gas_alert else 400
 
@@ -271,7 +340,12 @@ class RaspberryPiHardwareNode:
 
     def run(self):
         try:
-            self.setup_hardware()
+            if not SIMULATION_MODE:
+                self.setup_hardware()
+            else:
+                print("[SIMULATION] Running without Raspberry Pi hardware.")
+
+            # Always connect to MQTT
             self.setup_mqtt()
 
             print("[SYSTEM] Raspberry Pi MQTT hardware node running")
@@ -287,11 +361,23 @@ class RaspberryPiHardwareNode:
             self.cleanup()
 
     def cleanup(self):
+
+        if self.client:
+            self.client.loop_stop()
+            self.client.disconnect()
+
+        if SIMULATION_MODE:
+            print("[SIMULATION] Finished.")
+            return
+        
         print("[SYSTEM] Cleaning up...")
 
         try:
             if self.fan:
-                self.fan.set_speed(0)
+                if SIMULATION_MODE:
+                    print("[SIM] Fan OFF")
+                else:
+                    self.fan.set_speed(0)
                 self.fan.stop()
 
             if self.servo:

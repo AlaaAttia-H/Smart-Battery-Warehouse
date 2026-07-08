@@ -4,10 +4,25 @@ Laptop MQTT controller.
 This file runs on the laptop.
 It receives sensor data from the Raspberry Pi and sends actuator commands back.
 """
-
+import os
+import sys
 import time
 
 import paho.mqtt.client as mqtt
+
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+SRC_PATH = os.path.join(PROJECT_ROOT, "raspberry-pi", "src")
+
+print("SRC PATH:", SRC_PATH)
+print("Exists:", os.path.exists(SRC_PATH))
+
+sys.path.insert(0, SRC_PATH)
+
+
+from notifications.ntfy_sender import send_ntfy_notification
+
 
 try:
     from mqtt.topics import (
@@ -37,12 +52,13 @@ except ImportError:
     )
 
 
-BROKER = "172.26.9.207"   # Raspberry Pi IP address
+BROKER = "localhost"   # Raspberry Pi IP address
 PORT = 1883
 
 
 class LaptopController:
     def __init__(self):
+        self.last_risk_level = None
         self.broker = BROKER
         self.port = PORT
 
@@ -104,12 +120,28 @@ class LaptopController:
         for topic, command in commands.items():
             self.publish_if_changed(topic, command)
 
-        if risk_level == "HIGH":
-            self.publish_if_changed(
-                NOTIFICATION_MANAGER,
-                "High warehouse risk detected. Emergency actions activated.",
-            )
+        if risk_level == "HIGH" and self.last_risk_level != "HIGH":
+            if risk_level == "HIGH":
+                alert_message = (
+                    "🚨 HIGH RISK ALERT\n"
+                    f"Temperature: {temperature}°C\n"
+                    f"CO₂: {co2}\n"
+                    f"Gas Detected: {gas_alert}\n\n"
+                    "Immediate action required."
+                )
 
+                self.publish_if_changed(
+                    NOTIFICATION_MANAGER,
+                    alert_message,
+                )
+
+                send_ntfy_notification(
+                    title="Warehouse HIGH Risk",
+                    message=alert_message,
+                    priority="high",
+                )
+
+        self.last_risk_level = risk_level
     def calculate_risk_level(self, temperature, co2, gas_alert):
         if gas_alert:
             return "HIGH"
