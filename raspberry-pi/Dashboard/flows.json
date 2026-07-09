@@ -1,0 +1,22 @@
+[
+    {
+        "id": "101156acd5b036e1",
+        "type": "function",
+        "z": "0d013c58d85da0a5",
+        "name": "Format System State",
+        "func": "var state = msg.payload.toUpperCase();\nvar label, color;\nif      (state === 'EMERGENCY') { label = 'EMERGENCY'; color = '#ff0000'; }\nelse if (state === 'WARNING')   { label = 'WARNING';   color = '#ff8000'; }\nelse                            { label = 'NORMAL';    color = '#00b500'; }\n\nmsg.payload  = label;\nmsg.ui_update = {color: color};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1170,
+        "y": 880,
+        "wires": [
+            [
+                "4731e5dad4d3b713"
+            ]
+        ]
+    }
+]
