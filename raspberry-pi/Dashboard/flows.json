@@ -8,160 +8,6 @@
         "env": []
     },
     {
-        "id": "broker_local",
-        "type": "mqtt-broker",
-        "name": "Mosquitto Local",
-        "broker": "localhost",
-        "port": "1883",
-        "clientid": "",
-        "autoConnect": true,
-        "usetls": false,
-        "protocolVersion": "4",
-        "keepalive": "60",
-        "cleansession": true,
-        "birthTopic": "",
-        "birthQos": "0",
-        "birthPayload": "",
-        "birthMsg": {},
-        "closeTopic": "",
-        "closeQos": "0",
-        "closePayload": "",
-        "closeMsg": {},
-        "willTopic": "",
-        "willQos": "0",
-        "willPayload": "",
-        "willMsg": {},
-        "userProps": "",
-        "sessionExpiry": ""
-    },
-    {
-        "id": "ui_theme",
-        "type": "ui-theme",
-        "name": "Default Theme",
-        "colors": {
-            "surface": "#ffffff",
-            "primary": "#0094CE",
-            "bgPage": "#eeeeee",
-            "groupBg": "#ffffff",
-            "groupOutline": "#cccccc"
-        }
-    },
-    {
-        "id": "ui_base",
-        "type": "ui-base",
-        "name": "Smart Warehouse UI",
-        "path": "/dashboard",
-        "includeClientData": true,
-        "acceptsClientConfig": [],
-        "showPathInSidebar": false
-    },
-    {
-        "id": "ui_page",
-        "type": "ui-page",
-        "name": "Smart Battery Warehouse",
-        "ui": "ui_base",
-        "path": "/",
-        "icon": "mdi-warehouse",
-        "layout": "grid",
-        "theme": "ui_theme",
-        "breakpoints": [
-            {
-                "name": "Default",
-                "px": 0,
-                "cols": 3
-            },
-            {
-                "name": "Tablet",
-                "px": 576,
-                "cols": 6
-            },
-            {
-                "name": "Small Desktop",
-                "px": 768,
-                "cols": 9
-            },
-            {
-                "name": "Desktop",
-                "px": 1024,
-                "cols": 12
-            }
-        ],
-        "order": 1,
-        "className": "",
-        "visible": true,
-        "disabled": false
-    },
-    {
-        "id": "g_state",
-        "type": "ui-group",
-        "name": "System State",
-        "page": "ui_page",
-        "width": 12,
-        "height": 1,
-        "order": 1,
-        "showTitle": false,
-        "className": "",
-        "visible": "true",
-        "disabled": "false",
-        "groupType": "default"
-    },
-    {
-        "id": "g_sensors",
-        "type": "ui-group",
-        "name": "Sensor Readings",
-        "page": "ui_page",
-        "width": 6,
-        "height": 1,
-        "order": 2,
-        "showTitle": true,
-        "className": "",
-        "visible": "true",
-        "disabled": "false",
-        "groupType": "default"
-    },
-    {
-        "id": "g_history",
-        "type": "ui-group",
-        "name": "Historical Data",
-        "page": "ui_page",
-        "width": 6,
-        "height": 1,
-        "order": 3,
-        "showTitle": true,
-        "className": "",
-        "visible": "true",
-        "disabled": "false",
-        "groupType": "default"
-    },
-    {
-        "id": "g_notify",
-        "type": "ui-group",
-        "name": "Notifications",
-        "page": "ui_page",
-        "width": 6,
-        "height": 1,
-        "order": 4,
-        "showTitle": true,
-        "className": "",
-        "visible": "true",
-        "disabled": "false",
-        "groupType": "default"
-    },
-    {
-        "id": "g_plan",
-        "type": "ui-group",
-        "name": "AI Planning",
-        "page": "ui_page",
-        "width": 12,
-        "height": 1,
-        "order": 5,
-        "showTitle": true,
-        "className": "",
-        "visible": "true",
-        "disabled": "false",
-        "groupType": "default"
-    },
-    {
         "id": "mqtt_state",
         "type": "mqtt in",
         "z": "tab_dashboard",
@@ -661,8 +507,8 @@
         "datatype": "str",
         "broker": "broker_local",
         "inputs": 0,
-        "x": 300,
-        "y": 100,
+        "x": 290,
+        "y": 440,
         "wires": [
             [
                 "fn_plan"
@@ -679,8 +525,8 @@
         "datatype": "str",
         "broker": "broker_local",
         "inputs": 0,
-        "x": 300,
-        "y": 100,
+        "x": 280,
+        "y": 520,
         "wires": [
             [
                 "fn_plan"
@@ -692,7 +538,7 @@
         "type": "function",
         "z": "tab_dashboard",
         "name": "Combine Plan Display",
-        "func": "if (msg.topic && msg.topic.indexOf('current_plan') !== -1) {\n    flow.set('current_plan', msg.payload);\n} else if (msg.topic && msg.topic.indexOf('last_plan') !== -1) {\n    flow.set('last_plan', msg.payload);\n}\n\nvar current = flow.get('current_plan') || 'Waiting for a plan...';\nvar last = flow.get('last_plan') || 'No previous plan available.';\n\nmsg.payload = '### Current Action Plan\\n> ' + current + '\\n\\n---\\n\\n### Previous Plan\\n> ' + last;\nreturn msg;",
+        "func": "// Function to transform the raw string into an array of structured objects\nfunction parsePlan(planStr) {\n    if (!planStr || typeof planStr !== 'string') { return []; }\n\n    return planStr.split(';')\n        .map(function (a) { return a.trim(); })\n        .filter(function (a) { return a.length > 0; })\n        .map(function (a) {\n            var parts = a.split(' ');\n\n            // If no space (no zone), return only the action\n            if (parts.length < 2) {\n                var actionLabel = a.replace(/-/g, ' ').replace(/\\b\\w/g, function (c) { return c.toUpperCase(); });\n                return { action: actionLabel, zone: null };\n            }\n\n            var zone = parts.pop();\n            var action = parts.join(' ');\n\n            var actionLabel = action.replace(/-/g, ' ').replace(/\\b\\w/g, function (c) { return c.toUpperCase(); });\n            var zoneLabel = zone.replace(/-/g, ' ').replace(/\\b\\w/g, function (c) { return c.toUpperCase(); });\n\n            return {\n                action: actionLabel,\n                zone: zoneLabel\n            };\n        });\n}\n\n// Store in the flow context based on the incoming message topic\nif (msg.topic && msg.topic.indexOf('current_plan') !== -1) {\n    flow.set('current_plan', parsePlan(msg.payload));\n} else if (msg.topic && msg.topic.indexOf('last_plan') !== -1) {\n    flow.set('last_plan', parsePlan(msg.payload));\n}\n\n// Retrieve the structured plans (default to empty array if nothing is stored)\nvar current = flow.get('current_plan') || [];\nvar last = flow.get('last_plan') || [];\n\n// Send a single structured object to the template\nmsg.payload = {\n    current: current,\n    last: last\n};\n\nreturn msg;",
         "outputs": 1,
         "timeout": "",
         "noerr": 0,
@@ -703,28 +549,190 @@
         "y": 540,
         "wires": [
             [
-                "ui_plan_markdown"
+                "14bd061a568cf24f"
             ]
         ]
     },
     {
-        "id": "ui_plan_markdown",
-        "type": "ui-markdown",
+        "id": "14bd061a568cf24f",
+        "type": "ui-template",
         "z": "tab_dashboard",
         "group": "g_plan",
-        "name": "Plan Output",
-        "order": 1,
-        "width": 12,
-        "height": 4,
+        "page": "",
+        "ui": "",
+        "name": "",
+        "order": 0,
+        "width": "5",
+        "height": "7",
+        "head": "",
+        "format": "<template>\n    <div class=\"plan-container\">\n        <!-- Current Action Plan Section -->\n        <div class=\"plan-section\">\n            <h3 class=\"plan-title text-primary\">Current Action Plan</h3>\n            \n            <div v-if=\"!msg.payload.current || msg.payload.current.length === 0\" class=\"no-plan\">\n                No active plan available\n            </div>\n            \n            <ul v-else class=\"plan-list\">\n                <li v-for=\"(item, index) in msg.payload.current\" :key=\"'curr-' + index\" class=\"plan-item\">\n                    <span class=\"action-text\">{{ item.action }}</span>\n                    <span v-if=\"item.zone\" class=\"zone-badge\">{{ item.zone }}</span>\n                </li>\n            </ul>\n        </div>\n\n        <hr class=\"section-divider\" />\n\n        <!-- Previous Plan Section -->\n        <div class=\"plan-section\">\n            <h3 class=\"plan-title text-secondary\">Last Plan</h3>\n            \n            <div v-if=\"!msg.payload.last || msg.payload.last.length === 0\" class=\"no-plan\">\n                No last plan available\n            </div>\n            \n            <ul v-else class=\"plan-list\">\n                <li v-for=\"(item, index) in msg.payload.last\" :key=\"'last-' + index\" class=\"plan-item\">\n                    <span class=\"action-text\">{{ item.action }}</span>\n                    <span v-if=\"item.zone\" class=\"zone-badge\">{{ item.zone }}</span>\n                </li>\n            </ul>\n        </div>\n    </div>\n</template>\n\n<style scoped>\n    .plan-container {\n        font-family: var(--v-font-family, sans-serif);\n        padding: 8px;\n    }\n    \n    .plan-section {\n        margin-bottom: 16px;\n    }\n    \n    .plan-title {\n        font-size: 1.15rem;\n        font-weight: 600;\n        margin-top: 0;\n        margin-bottom: 12px;\n    }\n    \n    .text-primary {\n        color: var(--v-theme-primary, #1976d2); /* Adapts to your dashboard primary theme color */\n    }\n    \n    .text-secondary {\n        color: var(--v-theme-on-surface-variant, #666);\n    }\n    \n    .no-plan {\n        font-style: italic;\n        color: #888;\n        padding-left: 4px;\n    }\n    \n    .plan-list {\n        list-style-type: none;\n        padding: 0;\n        margin: 0;\n    }\n    \n    .plan-item {\n        display: flex;\n        justify-content: space-between;\n        align-items: center;\n        padding: 8px 12px;\n        margin-bottom: 6px;\n        background-color: var(--v-theme-surface-variant, #f5f5f5);\n        border-radius: 6px;\n        border-left: 4px solid var(--v-theme-primary, #1976d2);\n    }\n    \n    /* The previous plan list uses a more neutral accent color */\n    .text-secondary + .plan-list .plan-item {\n        border-left-color: #9e9e9e;\n    }\n    \n    .action-text {\n        font-weight: 500;\n        color: var(--v-theme-on-surface, #333);\n    }\n    \n    .zone-badge {\n        font-size: 0.75rem;\n        background-color: var(--v-theme-surface, #e0e0e0);\n        color: var(--v-theme-on-surface, #555);\n        padding: 3px 8px;\n        border-radius: 12px;\n        font-weight: bold;\n        text-transform: uppercase;\n        letter-spacing: 0.5px;\n    }\n    \n    .section-divider {\n        border: 0;\n        border-top: 1px dashed var(--v-theme-border, #ddd);\n        margin: 20px 0;\n    }\n</style>",
+        "storeOutMessages": true,
+        "passthru": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
         "className": "",
-        "x": 800,
-        "y": 540,
+        "x": 780,
+        "y": 580,
         "wires": [
             []
         ]
     },
     {
-        "id": "global_cfg",
+        "id": "broker_local",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "g_state",
+        "type": "ui-group",
+        "name": "System State",
+        "page": "ui_page",
+        "width": 12,
+        "height": 1,
+        "order": 1,
+        "showTitle": false,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_sensors",
+        "type": "ui-group",
+        "name": "Sensor Readings",
+        "page": "ui_page",
+        "width": 6,
+        "height": 1,
+        "order": 2,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_history",
+        "type": "ui-group",
+        "name": "Historical Data",
+        "page": "ui_page",
+        "width": 6,
+        "height": 1,
+        "order": 3,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_notify",
+        "type": "ui-group",
+        "name": "Notifications",
+        "page": "ui_page",
+        "width": 6,
+        "height": 1,
+        "order": 4,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_plan",
+        "type": "ui-group",
+        "name": "AI Planning",
+        "page": "ui_page",
+        "width": "5",
+        "height": 1,
+        "order": 5,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "ui_page",
+        "type": "ui-page",
+        "name": "Smart Battery Warehouse",
+        "ui": "ui_base",
+        "path": "/",
+        "icon": "mdi-warehouse",
+        "layout": "grid",
+        "theme": "ui_theme",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": 0,
+                "cols": 3
+            },
+            {
+                "name": "Tablet",
+                "px": 576,
+                "cols": 6
+            },
+            {
+                "name": "Small Desktop",
+                "px": 768,
+                "cols": 9
+            },
+            {
+                "name": "Desktop",
+                "px": 1024,
+                "cols": 12
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": true,
+        "disabled": false
+    },
+    {
+        "id": "ui_base",
+        "type": "ui-base",
+        "name": "Smart Warehouse UI",
+        "path": "/dashboard",
+        "includeClientData": true,
+        "acceptsClientConfig": [],
+        "showPathInSidebar": false
+    },
+    {
+        "id": "ui_theme",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        }
+    },
+    {
+        "id": "f311bb91cd582b50",
         "type": "global-config",
         "env": [],
         "modules": {
