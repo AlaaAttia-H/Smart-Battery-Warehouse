@@ -1,44 +1,24 @@
 """
-Laptop MQTT controller.
-
-This file runs on the laptop.
-It receives sensor data from the Raspberry Pi and sends actuator commands back.
+Laptop MQTT controller using AI planning.
 """
 
 import time
 
 import paho.mqtt.client as mqtt
 
-try:
-    from mqtt.topics import (
-        ACTUATOR_BUZZER_COMMAND,
-        ACTUATOR_FAN_COMMAND,
-        ACTUATOR_LED_COMMAND,
-        ACTUATOR_SHUTTER_COMMAND,
-        CONTEXT_RISK_LEVEL,
-        NOTIFICATION_MANAGER,
-        PLANNING_PLAN,
-        SENSOR_CO2,
-        SENSOR_GAS_ALERT,
-        SENSOR_TEMPERATURE,
-    )
-except ImportError:
-    from topics import (
-        ACTUATOR_BUZZER_COMMAND,
-        ACTUATOR_FAN_COMMAND,
-        ACTUATOR_LED_COMMAND,
-        ACTUATOR_SHUTTER_COMMAND,
-        CONTEXT_RISK_LEVEL,
-        NOTIFICATION_MANAGER,
-        PLANNING_PLAN,
-        SENSOR_CO2,
-        SENSOR_GAS_ALERT,
-        SENSOR_TEMPERATURE,
-    )
+from config.config_loader import get_mqtt_broker_host, get_mqtt_broker_port
+from executor.plan_executor import execute_plan
+from knowledge_base import warehouse_kb as kb
+from mqtt import topics
+from planner.ai_planner import run_planner
+from planner.problem_generator import generate_problem
+from processor.context_processor import calculate_context
 
 
-BROKER = "172.26.9.207"   # Raspberry Pi IP address
-PORT = 1883
+BROKER = get_mqtt_broker_host()
+PORT = get_mqtt_broker_port()
+
+MIN_SECONDS_BETWEEN_PLANS = 3
 
 
 class LaptopController:
@@ -52,6 +32,10 @@ class LaptopController:
 
         self.sensor_state = {}
         self.last_published = {}
+        self.last_context_signature = None
+        self.last_planning_time = 0
+        self.current_plan_text = "No plan generated yet"
+        self.last_plan_text = "No previous plan"
 
     def connect(self):
         print(f"[MQTT] Connecting to broker at {self.broker}:{self.port}")
@@ -69,126 +53,135 @@ class LaptopController:
 
         print(f"[SENSOR RECEIVED] {topic} -> {message}")
 
-        self.sensor_state[topic] = message
-        self.evaluate_system_state()
+        self.update_sensor_state(topic, message)
+        if topic == topics.SENSOR_BATTERY_STATUS:
+            self.evaluate_system_state()
+        
 
-    def get_float(self, topic, default=None):
-        try:
-            return float(self.sensor_state.get(topic, default))
-        except (TypeError, ValueError):
-            return default
-
-    def get_bool(self, topic):
-        value = str(self.sensor_state.get(topic, "")).lower()
-        return value in ["1", "true", "yes", "on", "alert", "high"]
-
-    def evaluate_system_state(self):
-        temperature = self.get_float(SENSOR_TEMPERATURE)
-        co2 = self.get_float(SENSOR_CO2)
-        gas_alert = self.get_bool(SENSOR_GAS_ALERT)
-
-        if temperature is None:
+    def update_sensor_state(self, topic, message):
+        if topic == topics.SENSOR_TEMPERATURE:
+            sensor_name = "temperature"
+        elif topic == topics.SENSOR_HUMIDITY:
+            sensor_name = "humidity"
+        elif topic == topics.SENSOR_GAS_STATUS:
+            sensor_name = "gas_status"
+        elif topic == topics.SENSOR_OCCUPANCY:
+            sensor_name = "occupancy"
+        elif topic == topics.SENSOR_BATTERY_STATUS:
+            sensor_name = "battery_status"
+        else:
             return
 
-        risk_level = self.calculate_risk_level(
-            temperature=temperature,
-            co2=co2,
-            gas_alert=gas_alert,
+        self.sensor_state[sensor_name] = message
+        kb.update_sensor_value(sensor_name, message)
+
+    def enough_sensor_data(self):
+        required_values = [
+            "temperature",
+            "humidity",
+            "gas_status",
+            "occupancy",
+            "battery_status",
+        ]
+
+        for value in required_values:
+            if value not in self.sensor_state:
+                return False
+
+        return True
+
+    def evaluate_system_state(self):
+        if not self.enough_sensor_data():
+            return
+
+        context = calculate_context(self.sensor_state)
+
+        risk_level = context["risk_level"]
+        battery_condition = context["battery_condition"]
+        occupancy = context["occupancy"]
+
+        self.publish_if_changed(topics.CONTEXT_RISK_LEVEL, risk_level)
+        self.publish_if_changed(topics.CONTEXT_BATTERY_CONDITION, battery_condition)
+
+        system_state = self.risk_to_system_state(risk_level)
+
+        self.publish_if_changed(topics.CONTEXT_RISK_LEVEL, risk_level, retain=True)
+        self.publish_if_changed(topics.CONTEXT_SYSTEM_STATE, system_state, retain=True)
+        self.publish_if_changed(topics.CONTEXT_BATTERY_CONDITION, battery_condition, retain=True)
+
+        print(
+            f"[STATE] risk={risk_level} "
+            f"battery_condition={battery_condition} "
+            f"temperature={context['temperature']} "
+            f"humidity={context['humidity']} "
+            f"gas={context['gas_status']} "
+            f"occupancy={context['occupancy']} "
+            f"battery={context['battery_status']}"
         )
 
-        commands, plan = self.decide_actions(risk_level)
+        context_signature = (
+            risk_level,
+            battery_condition,
+            occupancy,
+        )
 
-        self.publish_if_changed(CONTEXT_RISK_LEVEL, risk_level)
-        self.publish_if_changed(PLANNING_PLAN, plan)
+        now = time.time()
 
-        for topic, command in commands.items():
-            self.publish_if_changed(topic, command)
+        if context_signature == self.last_context_signature:
+            return
 
-        if risk_level == "HIGH":
-            self.publish_if_changed(
-                NOTIFICATION_MANAGER,
-                "High warehouse risk detected. Emergency actions activated.",
-            )
+        if now - self.last_planning_time < MIN_SECONDS_BETWEEN_PLANS:
+            return
 
-    def calculate_risk_level(self, temperature, co2, gas_alert):
-        if gas_alert:
-            return "HIGH"
+        self.last_context_signature = context_signature
+        self.last_planning_time = now
 
-        if temperature >= 40:
-            return "HIGH"
+        print("[SYSTEM] Context changed. Generating new PDDL problem...")
 
-        if co2 is not None and co2 >= 1000:
-            return "HIGH"
+        generate_problem(context)
 
-        if temperature >= 32:
-            return "MEDIUM"
+        plan = run_planner()
 
-        if co2 is not None and co2 >= 800:
-            return "MEDIUM"
+        if not plan:
+            print("[SYSTEM] No plan found. Commands not updated.")
+            return
 
-        return "LOW"
+        kb.set_latest_plan(plan)
 
-    def decide_actions(self, risk_level):
-        if risk_level == "HIGH":
-            commands = {
-                ACTUATOR_FAN_COMMAND: "ON",
-                ACTUATOR_BUZZER_COMMAND: "ON",
-                ACTUATOR_LED_COMMAND: "RED",
-                ACTUATOR_SHUTTER_COMMAND: "CLOSE",
-            }
+        plan_text = "; ".join(plan)
+        # self.publish_if_changed(topics.PLANNING_PLAN, plan_text)
 
-            plan = (
-                "start-fan; "
-                "activate-alarm; "
-                "turn-on-warning-light; "
-                "close-shutter; "
-                "notify-manager"
-            )
+        # execute_plan(plan, self.client)
 
-        elif risk_level == "MEDIUM":
-            commands = {
-                ACTUATOR_FAN_COMMAND: "ON",
-                ACTUATOR_BUZZER_COMMAND: "OFF",
-                ACTUATOR_LED_COMMAND: "ORANGE",
-                ACTUATOR_SHUTTER_COMMAND: "OPEN",
-            }
+        # Move the old current plan to last plan before updating
+        self.last_plan_text = self.current_plan_text
+        self.current_plan_text = plan_text
 
-            plan = (
-                "start-fan; "
-                "turn-on-warning-light; "
-                "open-shutter"
-            )
+        self.publish_if_changed(topics.PLANNING_LAST_PLAN, self.last_plan_text, retain=True)
+        self.publish_if_changed(topics.PLANNING_CURRENT_PLAN, self.current_plan_text, retain=True)
 
-        else:
-            commands = {
-                ACTUATOR_FAN_COMMAND: "OFF",
-                ACTUATOR_BUZZER_COMMAND: "OFF",
-                ACTUATOR_LED_COMMAND: "GREEN",
-                ACTUATOR_SHUTTER_COMMAND: "OPEN",
-            }
+        # Keep old topic too, for compatibility
+        self.publish_if_changed(topics.PLANNING_PLAN, self.current_plan_text, retain=True)
 
-            plan = (
-                "stop-fan; "
-                "stop-alarm; "
-                "set-safe-light; "
-                "open-shutter"
-            )
+        self.publish_if_changed(topics.PLANNING_EXECUTION_STATUS, "EXECUTING", retain=True)
 
-        return commands, plan
+        execute_plan(plan, self.client)
+
+        self.publish_if_changed(topics.PLANNING_EXECUTION_STATUS, "COMPLETED", retain=True)
 
     def publish_if_changed(self, topic, message):
         if self.last_published.get(topic) == message:
             return
 
-        self.client.publish(topic, message)
+        self.client.publish(topic, str(message))
         self.last_published[topic] = message
 
-        print(f"[COMMAND SENT] {topic} -> {message}")
+        print(f"[MQTT PUBLISHED] {topic} -> {message}")
 
     def run(self):
         self.connect()
 
-        print("[SYSTEM] Laptop controller running")
+        print("[SYSTEM] Laptop AI planner controller running")
         print("[SYSTEM] Press Ctrl+C to stop")
 
         try:
@@ -202,6 +195,25 @@ class LaptopController:
             time.sleep(0.5)
             print("[SYSTEM] Laptop controller stopped")
 
+    def risk_to_system_state(self, risk_level):
+        risk_level = str(risk_level).upper()
+
+        if risk_level == "HIGH":
+            return "EMERGENCY"
+
+        if risk_level == "MEDIUM":
+            return "WARNING"
+
+        return "NORMAL"
+    
+    def publish_if_changed(self, topic, message, retain=False):
+        if self.last_published.get(topic) == message:
+            return
+
+        self.client.publish(topic, str(message), retain=retain)
+        self.last_published[topic] = message
+
+        print(f"[MQTT PUBLISHED] {topic} -> {message}")
 
 def main():
     controller = LaptopController()

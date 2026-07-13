@@ -1,22 +1,20 @@
 """
-MQTT topic names for the project.
+MQTT topic names for the Smart Battery Warehouse project.
 """
 
 # Sensor topics
 SENSOR_TEMPERATURE = "warehouse/sensors/temperature"
 SENSOR_HUMIDITY = "warehouse/sensors/humidity"
-SENSOR_CO2 = "warehouse/sensors/co2"
+SENSOR_GAS_STATUS = "warehouse/sensors/gas_status"
 SENSOR_OCCUPANCY = "warehouse/sensors/occupancy"
 SENSOR_BATTERY_STATUS = "warehouse/sensors/battery_status"
-SENSOR_GAS_ALERT = "warehouse/sensors/gas_alert"
 
 SENSOR_TOPICS = [
     SENSOR_TEMPERATURE,
     SENSOR_HUMIDITY,
-    SENSOR_CO2,
+    SENSOR_GAS_STATUS,
     SENSOR_OCCUPANCY,
     SENSOR_BATTERY_STATUS,
-    SENSOR_GAS_ALERT,
 ]
 
 # Actuator command topics
@@ -34,5 +32,13 @@ ACTUATOR_COMMAND_TOPICS = [
 
 # Context, planning, and notification topics
 CONTEXT_RISK_LEVEL = "warehouse/context/risk_level"
+CONTEXT_BATTERY_CONDITION = "warehouse/context/battery_condition"
 PLANNING_PLAN = "warehouse/planning/plan"
 NOTIFICATION_MANAGER = "warehouse/notifications/manager"
+
+# Dashboard / system state topics
+CONTEXT_SYSTEM_STATE = "warehouse/context/system_state"
+
+PLANNING_CURRENT_PLAN = "warehouse/planning/current_plan"
+PLANNING_LAST_PLAN = "warehouse/planning/last_plan"
+PLANNING_EXECUTION_STATUS = "warehouse/planning/execution_status"

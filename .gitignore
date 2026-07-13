@@ -217,12 +217,11 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local config files
-config/config.json
 
 # Generated planning/runtime files
-planning/current_problem.pddl
-planning/planner_output.txt
+runtime/
+planner/generated_plan.txt
+planner/sas_plan
 
 # Logs
 *.log

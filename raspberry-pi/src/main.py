@@ -1,3 +1,7 @@
+"""
+Main for the Raspberry Pi hardware node.
+"""
+
 from mqtt.rpi_hardware_node import RaspberryPiHardwareNode
 
 

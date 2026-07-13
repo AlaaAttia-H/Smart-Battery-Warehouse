@@ -1,6 +1,5 @@
 """
 Raspberry Pi MQTT hardware node.
-
 """
 
 import random
@@ -9,9 +8,11 @@ import time
 import paho.mqtt.client as mqtt
 import smbus2
 
-from hardware.grove_inputs import read_dht
+from hardware.grove_inputs import pin_mode, read_dht, read_button
 from hardware.grove_outputs import GroveBuzzer
 from hardware.pi_direct import DCFan, MQ2Sensor, RGBLed, Servo
+import json
+from pathlib import Path
 
 from mqtt.topics import (
     ACTUATOR_BUZZER_COMMAND,
@@ -19,10 +20,8 @@ from mqtt.topics import (
     ACTUATOR_FAN_COMMAND,
     ACTUATOR_LED_COMMAND,
     ACTUATOR_SHUTTER_COMMAND,
-    CONTEXT_RISK_LEVEL,
     SENSOR_BATTERY_STATUS,
-    SENSOR_CO2,
-    SENSOR_GAS_ALERT,
+    SENSOR_GAS_STATUS,
     SENSOR_HUMIDITY,
     SENSOR_OCCUPANCY,
     SENSOR_TEMPERATURE,
@@ -33,6 +32,12 @@ from mqtt.topics import (
 DHT_PIN = 4
 DHT_TYPE = 0
 
+BUZZER_PIN = 3
+
+BUTTON_PIN = 8
+BUTTON_DEBOUNCE_SECONDS = 0.3
+BUTTON_ACTIVE_LOW = False
+
 # Direct Raspberry Pi GPIO configuration
 SERVO_PIN = 22
 MQ2_PIN = 27
@@ -41,9 +46,11 @@ LED_R_PIN = 25
 LED_G_PIN = 24
 LED_B_PIN = 23
 
-BUZZER_PIN = 3
-
-SIMULATE_MISSING_SENSORS = True
+# Battery is still simulated because we do not have a real battery sensor.
+SIMULATE_BATTERY = False
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BATTERY_STATE_FILE = PROJECT_ROOT / "runtime" / "battery_state.json"
+DEFAULT_BATTERY_STATUS = 100
 
 
 class RaspberryPiHardwareNode:
@@ -62,7 +69,11 @@ class RaspberryPiHardwareNode:
         self.buzzer = None
 
         self.simulated_battery = 100
-        self.simulated_occupancy = 0
+
+        # Used for button-based occupancy
+        self.occupancy = 0
+        self.last_button_state = None
+        self.last_button_toggle_time = 0
 
     def open_bus(self):
         bus = smbus2.SMBus(1)
@@ -73,6 +84,8 @@ class RaspberryPiHardwareNode:
         print("[SYSTEM] Initialising hardware...")
 
         self.bus = self.open_bus()
+
+        pin_mode(self.bus, BUTTON_PIN, 0)
 
         self.fan = DCFan()
         self.servo = Servo(gpio_pin=SERVO_PIN)
@@ -107,10 +120,6 @@ class RaspberryPiHardwareNode:
             client.subscribe(topic)
             print(f"[MQTT] Subscribed to {topic}")
 
-        # Optional backup: the Pi can also react directly to risk level.
-        client.subscribe(CONTEXT_RISK_LEVEL)
-        print(f"[MQTT] Subscribed to {CONTEXT_RISK_LEVEL}")
-
     def on_message(self, client, userdata, msg):
         topic = msg.topic
         message = msg.payload.decode(errors="replace").strip()
@@ -130,7 +139,6 @@ class RaspberryPiHardwareNode:
             elif topic == ACTUATOR_SHUTTER_COMMAND:
                 self.handle_shutter_command(message)
 
-
         except Exception as e:
             print(f"[MQTT ERROR] Could not handle command: {e}")
 
@@ -138,13 +146,12 @@ class RaspberryPiHardwareNode:
         command = command.upper()
 
         if command in ["ON", "START", "1", "TRUE"]:
-            self.fan.set_speed(100)
+            self.fan.set_speed(70)
 
         elif command in ["OFF", "STOP", "0", "FALSE"]:
             self.fan.set_speed(0)
 
         else:
-            # Allow numeric speed, for example: "50"
             speed = float(command)
             self.fan.set_speed(speed)
 
@@ -174,7 +181,9 @@ class RaspberryPiHardwareNode:
             self.led.set_color(r, g, b)
             return
 
+        # Also allow RGB format, for example: 255,0,0
         parts = command.split(",")
+
         if len(parts) == 3:
             r, g, b = [int(part.strip()) for part in parts]
             self.led.set_color(r, g, b)
@@ -195,58 +204,81 @@ class RaspberryPiHardwareNode:
             angle = float(command)
             self.servo.set_position(angle)
 
-    def handle_risk_level(self, risk_level):
-        risk_level = risk_level.upper()
+    def read_battery_status(self):
+        try:
+            if not BATTERY_STATE_FILE.exists():
+                return DEFAULT_BATTERY_STATUS
 
-        # This is only a backup reaction.
-        # The laptop controller also sends direct actuator commands.
-        if risk_level == "HIGH":
-            self.fan.set_speed(100)
-            self.buzzer.start_siren()
-            self.led.set_color(255, 0, 0)
-            self.servo.set_position(0)
+            with open(BATTERY_STATE_FILE, "r", encoding="utf-8") as file:
+                data = json.load(file)
 
-        elif risk_level == "MEDIUM":
-            self.fan.set_speed(100)
-            self.buzzer.stop_siren()
-            self.led.set_color(255, 70, 0)
-            self.servo.set_position(90)
+            battery_status = int(data.get("battery_status", DEFAULT_BATTERY_STATUS))
 
-        elif risk_level == "LOW":
-            self.fan.set_speed(0)
-            self.buzzer.stop_siren()
-            self.led.set_color(0, 255, 0)
-            self.servo.set_position(90)
+            if battery_status < 0:
+                return 0
+
+            if battery_status > 100:
+                return 100
+
+            return battery_status
+
+        except Exception as e:
+            print(f"[BATTERY ERROR] Could not read battery state: {e}")
+            return DEFAULT_BATTERY_STATUS
 
     def publish(self, topic, value):
         self.client.publish(topic, str(value))
 
+    def read_occupancy_from_button(self):
+        try:
+            raw_value = read_button(self.bus, BUTTON_PIN)
+
+            if BUTTON_ACTIVE_LOW:
+                button_pressed = raw_value == 0
+            else:
+                button_pressed = raw_value == 1
+
+            current_button_state = 1 if button_pressed else 0
+            now = time.time()
+
+            if self.last_button_state is None:
+                self.last_button_state = current_button_state
+                return self.occupancy
+
+            if current_button_state == 1 and self.last_button_state == 0:
+                if now - self.last_button_toggle_time > BUTTON_DEBOUNCE_SECONDS:
+                    self.occupancy = 0 if self.occupancy == 1 else 1
+                    self.last_button_toggle_time = now
+
+            self.last_button_state = current_button_state
+            return self.occupancy
+
+        except OSError as e:
+            print(f"[BUTTON I2C ERROR] {e}")
+            return self.occupancy
     def publish_sensor_data(self):
         try:
             temperature, humidity = read_dht(self.bus, DHT_PIN, DHT_TYPE)
-            gas_alert = self.mq2.is_gas_detected()
 
-            co2_proxy = 1500 if gas_alert else 400
+            gas_alert = self.mq2.is_gas_detected()
+            gas_status = "ALERT" if gas_alert else "OK"
+
+            occupancy = self.read_occupancy_from_button()
+            battery_status = self.read_battery_status()
 
             self.publish(SENSOR_TEMPERATURE, round(temperature, 1))
             self.publish(SENSOR_HUMIDITY, round(humidity, 1))
-            self.publish(SENSOR_GAS_ALERT, int(gas_alert))
-            self.publish(SENSOR_CO2, co2_proxy)
+            self.publish(SENSOR_GAS_STATUS, gas_status)
+            self.publish(SENSOR_OCCUPANCY, occupancy)
+            self.publish(SENSOR_BATTERY_STATUS, battery_status)
 
-            if SIMULATE_MISSING_SENSORS:
-                self.simulated_battery = max(
-                    0,
-                    self.simulated_battery - random.choice([0, 0, 0, 1]),
-                )
-                self.simulated_occupancy = random.randint(0, 10)
-
-                self.publish(SENSOR_BATTERY_STATUS, self.simulated_battery)
-                self.publish(SENSOR_OCCUPANCY, self.simulated_occupancy)
 
             print(
                 f"[SENSORS] T={temperature:.1f}C "
                 f"H={humidity:.1f}% "
-                f"GAS={'ALERT' if gas_alert else 'OK'}"
+                f"GAS={gas_status} "
+                f"OCCUPANCY={occupancy} "
+                f"BATTERY={battery_status}%"
             )
 
         except OSError as e:
@@ -265,6 +297,9 @@ class RaspberryPiHardwareNode:
 
         time.sleep(2)
         self.bus = self.open_bus()
+
+        # Reconfigure Grove digital ports after reopening the I2C bus
+        pin_mode(self.bus, BUTTON_PIN, 0)
 
         if self.buzzer:
             self.buzzer.update_bus(self.bus)

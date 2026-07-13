@@ -45,7 +45,7 @@ class GroveBuzzer:
     def _siren_loop(self):
         while self._siren_running:
             self._write(1)
-            time.sleep(0.4)
+            time.sleep(0.1)
             if not self._siren_running:
                 break
             self._write(0)

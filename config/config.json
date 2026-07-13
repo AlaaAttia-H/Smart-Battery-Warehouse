@@ -1,0 +1,40 @@
+{
+  "mqtt": {
+    "broker_host": "192.168.137.70",
+    "broker_port": 1883
+  },
+  "topics": {
+    "temperature": "warehouse/sensors/temperature",
+    "humidity": "warehouse/sensors/humidity",
+    "gas_status": "warehouse/sensors/gas_status",
+    "occupancy": "warehouse/sensors/occupancy",
+    "battery_status": "warehouse/sensors/battery_status",
+
+    "fan_command": "warehouse/actuators/fan/command",
+    "buzzer_command": "warehouse/actuators/buzzer/command",
+    "led_command": "warehouse/actuators/led/command",
+    "shutter_command": "warehouse/actuators/shutter/command",
+
+    "risk_level": "warehouse/context/risk_level",
+    "battery_condition": "warehouse/context/battery_condition",
+    "plan": "warehouse/planning/plan",
+    "manager_notification": "warehouse/notifications/manager",
+
+    "system_state": "warehouse/context/system_state",
+    "current_plan": "warehouse/planning/current_plan",
+    "last_plan": "warehouse/planning/last_plan",
+    "execution_status": "warehouse/planning/execution_status" 
+  },
+  "thresholds": {
+    "temperature_medium": 29.0,
+    "temperature_high": 40.0,
+    "humidity_medium": 30.0,
+    "humidity_high": 40.0,
+    "battery_low": 50,
+    "battery_critical": 20
+  },
+  "planner": {
+    "fast_downward_path": "C:/Users/alaaa/Documents/Masters/SEM_2/SCIoT/Project/fast-downward-24.06.1.tar/fast-downward-24.06.1/fast-downward.py",
+    "plan_output_path": "planner/generated_plan.txt"
+  }
+}
