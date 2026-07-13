@@ -1,0 +1,742 @@
+[
+    {
+        "id": "tab_dashboard",
+        "type": "tab",
+        "label": "SCIoT Dashboard",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "mqtt_state",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "System State",
+        "topic": "warehouse/context/system_state",
+        "qos": "0",
+        "datatype": "str",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "101156acd5b036e1"
+            ]
+        ]
+    },
+    {
+        "id": "101156acd5b036e1",
+        "type": "function",
+        "z": "tab_dashboard",
+        "name": "Format System State",
+        "func": "var state = msg.payload.toUpperCase();\nvar label, color;\nif      (state === 'EMERGENCY') { label = 'EMERGENCY'; color = '#ff0000'; }\nelse if (state === 'WARNING')   { label = 'WARNING';   color = '#ff8000'; }\nelse                            { label = 'NORMAL';    color = '#00b500'; }\n\nmsg.payload  = label;\nmsg.ui_update = {color: color};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 100,
+        "wires": [
+            [
+                "ui_state_text"
+            ]
+        ]
+    },
+    {
+        "id": "ui_state_text",
+        "type": "ui-text",
+        "z": "tab_dashboard",
+        "group": "g_state",
+        "order": 1,
+        "width": 12,
+        "height": 2,
+        "name": "System State Display",
+        "label": "",
+        "format": "{{msg.payload}}",
+        "layout": "row-center",
+        "style": true,
+        "font": "",
+        "fontSize": 56,
+        "color": "#1a3a5c",
+        "className": "",
+        "x": 800,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "mqtt_temp",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Temperature",
+        "topic": "warehouse/sensors/temperature",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "ui_temp_gauge",
+                "ui_temp_chart"
+            ]
+        ]
+    },
+    {
+        "id": "ui_temp_gauge",
+        "type": "ui-gauge",
+        "z": "tab_dashboard",
+        "name": "Temperature Gauge",
+        "group": "g_sensors",
+        "order": 1,
+        "value": "payload",
+        "valueType": "msg",
+        "width": "2",
+        "height": "3",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Temperature",
+        "alwaysShowTitle": false,
+        "units": "",
+        "icon": "",
+        "prefix": "",
+        "suffix": "",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#00b500",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "32",
+                "color": "#ff8000",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "40",
+                "color": "#ff0000",
+                "text": "",
+                "textType": "label"
+            }
+        ],
+        "min": "0",
+        "max": "60",
+        "sizeThickness": 10,
+        "sizeGap": 2,
+        "sizeKeyThickness": 8,
+        "className": "",
+        "x": 800,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui_temp_chart",
+        "type": "ui-chart",
+        "z": "tab_dashboard",
+        "group": "g_history",
+        "name": "Temperature Chart",
+        "label": "Temperature (deg C)",
+        "order": 1,
+        "chartType": "line",
+        "category": "Temperature",
+        "categoryType": "str",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "removeOlder": "10",
+        "removeOlderUnit": "60",
+        "removeOlderPoints": "40",
+        "colors": [
+            "#0094CE",
+            "#ff7f0e",
+            "#2ca02c",
+            "#d62728",
+            "#9467bd",
+            "#8c564b"
+        ],
+        "width": 6,
+        "height": 4,
+        "className": "",
+        "x": 800,
+        "y": 180,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "mqtt_hum",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Humidity",
+        "topic": "warehouse/sensors/humidity",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "ui_hum_gauge",
+                "ui_hum_chart"
+            ]
+        ]
+    },
+    {
+        "id": "ui_hum_gauge",
+        "type": "ui-gauge",
+        "z": "tab_dashboard",
+        "name": "Humidity Gauge",
+        "group": "g_sensors",
+        "order": 2,
+        "value": "payload",
+        "valueType": "msg",
+        "width": "2",
+        "height": "3",
+        "gtype": "gauge-half",
+        "gstyle": "needle",
+        "title": "Humidity",
+        "alwaysShowTitle": false,
+        "units": "",
+        "icon": "",
+        "prefix": "",
+        "suffix": "",
+        "segments": [
+            {
+                "from": "0",
+                "color": "#00b500",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "60",
+                "color": "#ff8000",
+                "text": "",
+                "textType": "label"
+            },
+            {
+                "from": "80",
+                "color": "#ff0000",
+                "text": "",
+                "textType": "label"
+            }
+        ],
+        "min": "0",
+        "max": "100",
+        "sizeThickness": 10,
+        "sizeGap": 2,
+        "sizeKeyThickness": 8,
+        "className": "",
+        "x": 800,
+        "y": 220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui_hum_chart",
+        "type": "ui-chart",
+        "z": "tab_dashboard",
+        "group": "g_history",
+        "name": "Humidity Chart",
+        "label": "Humidity (%)",
+        "order": 2,
+        "chartType": "line",
+        "category": "Humidity",
+        "categoryType": "str",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "removeOlder": "10",
+        "removeOlderUnit": "60",
+        "removeOlderPoints": "40",
+        "colors": [
+            "#2ca02c",
+            "#0094CE",
+            "#ff7f0e",
+            "#d62728",
+            "#9467bd",
+            "#8c564b"
+        ],
+        "width": 6,
+        "height": 4,
+        "className": "",
+        "x": 800,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "mqtt_gas",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Gas Status",
+        "topic": "warehouse/sensors/gas_status",
+        "qos": "0",
+        "datatype": "str",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "fn_gas"
+            ]
+        ]
+    },
+    {
+        "id": "fn_gas",
+        "type": "function",
+        "z": "tab_dashboard",
+        "name": "Format Gas Status",
+        "func": "var status = String(msg.payload).toUpperCase();\nvar label, color;\nif (status === 'HIGH' || status === 'ALERT' || status === '1') {\n    label = 'HIGH';\n    color = '#ff0000';\n} else {\n    label = 'NORMAL';\n    color = '#00b500';\n}\nmsg.payload = label;\nmsg.textColor = color;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 300,
+        "wires": [
+            [
+                "ui_gas_template"
+            ]
+        ]
+    },
+    {
+        "id": "ui_gas_template",
+        "type": "ui-template",
+        "z": "tab_dashboard",
+        "group": "g_sensors",
+        "page": "",
+        "ui": "",
+        "name": "Gas Status",
+        "order": 3,
+        "width": "2",
+        "height": "3",
+        "head": "",
+        "format": "<div style=\"display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;\">\n    <div style=\"color: #000000; font-size: 1rem; margin-bottom: 4px; font-family: Helvetica; font-weight: bold;\">\n        Gas Status\n    </div>\n    <div :style=\"{ color: msg.textColor, fontSize: '28px', fontWeight: 'bold' }\">\n        {{ msg.payload }}\n    </div>\n</div>",
+        "storeOutMessages": true,
+        "passthru": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 800,
+        "y": 300,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "mqtt_occ",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Occupancy",
+        "topic": "warehouse/sensors/occupancy",
+        "qos": "0",
+        "datatype": "str",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "ui_occ_text"
+            ]
+        ]
+    },
+    {
+        "id": "ui_occ_text",
+        "type": "ui-text",
+        "z": "tab_dashboard",
+        "group": "g_sensors",
+        "order": 4,
+        "width": "2",
+        "height": "3",
+        "name": "Occupancy",
+        "label": "Occupancy",
+        "format": "{{msg.payload}}",
+        "layout": "col-center",
+        "style": false,
+        "font": "",
+        "fontSize": 26,
+        "color": "#1a3a5c",
+        "wrapText": false,
+        "className": "",
+        "value": "payload",
+        "valueType": "msg",
+        "x": 800,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "mqtt_batt",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Battery Status",
+        "topic": "warehouse/sensors/battery_status",
+        "qos": "0",
+        "datatype": "str",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "fn_batt"
+            ]
+        ]
+    },
+    {
+        "id": "fn_batt",
+        "type": "function",
+        "z": "tab_dashboard",
+        "name": "Format Battery Status",
+        "func": "var status = String(msg.payload).toUpperCase();\nvar label, color;\nif (status === 'CRITICAL') {\n    label = 'CRITICAL';\n    color = '#ff0000';\n} else if (status === 'LOW') {\n    label = 'LOW';\n    color = '#ff8000';\n} else {\n    label = 'OK';\n    color = '#00b500';\n}\nmsg.payload = label;\nmsg.textColor = color;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 380,
+        "wires": [
+            [
+                "ui_batt_template"
+            ]
+        ]
+    },
+    {
+        "id": "ui_batt_template",
+        "type": "ui-template",
+        "z": "tab_dashboard",
+        "group": "g_sensors",
+        "page": "",
+        "ui": "",
+        "name": "Battery Status",
+        "order": 5,
+        "width": "2",
+        "height": "3",
+        "head": "",
+        "format": "<div style=\"display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;\">\n    <div style=\"color: #000000; font-size: 1rem; margin-bottom: 4px; font-family: Helvetica; font-weight: bold;\">\n        Battery Status\n    </div>\n    <div :style=\"{ color: msg.textColor, fontSize: '28px', fontWeight: 'bold' }\">\n        {{ msg.payload }}\n    </div>\n</div>",
+        "storeOutMessages": true,
+        "passthru": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 800,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "mqtt_notify",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Manager Notification",
+        "topic": "warehouse/notifications/manager",
+        "qos": "0",
+        "datatype": "str",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 300,
+        "y": 100,
+        "wires": [
+            [
+                "fn_notify"
+            ]
+        ]
+    },
+    {
+        "id": "fn_notify",
+        "type": "function",
+        "z": "tab_dashboard",
+        "name": "Format Notification",
+        "func": "var ts = new Date().toLocaleTimeString();\nmsg.payload = '[' + ts + '] ' + msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 460,
+        "wires": [
+            [
+                "ui_notify_text"
+            ]
+        ]
+    },
+    {
+        "id": "ui_notify_text",
+        "type": "ui-text",
+        "z": "tab_dashboard",
+        "group": "g_notify",
+        "order": 1,
+        "width": 6,
+        "height": 2,
+        "name": "Manager Notification",
+        "label": "",
+        "format": "{{msg.payload}}",
+        "layout": "col-center",
+        "style": true,
+        "font": "",
+        "fontSize": 16,
+        "color": "#ff8000",
+        "className": "",
+        "x": 800,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "mqtt_current_plan",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Current Plan",
+        "topic": "warehouse/planning/current_plan",
+        "qos": "0",
+        "datatype": "str",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 290,
+        "y": 440,
+        "wires": [
+            [
+                "fn_plan"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_last_plan",
+        "type": "mqtt in",
+        "z": "tab_dashboard",
+        "name": "Last Plan",
+        "topic": "warehouse/planning/last_plan",
+        "qos": "0",
+        "datatype": "str",
+        "broker": "broker_local",
+        "inputs": 0,
+        "x": 280,
+        "y": 520,
+        "wires": [
+            [
+                "fn_plan"
+            ]
+        ]
+    },
+    {
+        "id": "fn_plan",
+        "type": "function",
+        "z": "tab_dashboard",
+        "name": "Combine Plan Display",
+        "func": "// Function to transform the raw string into an array of structured objects\nfunction parsePlan(planStr) {\n    if (!planStr || typeof planStr !== 'string') { return []; }\n\n    return planStr.split(';')\n        .map(function (a) { return a.trim(); })\n        .filter(function (a) { return a.length > 0; })\n        .map(function (a) {\n            var parts = a.split(' ');\n\n            // If no space (no zone), return only the action\n            if (parts.length < 2) {\n                var actionLabel = a.replace(/-/g, ' ').replace(/\\b\\w/g, function (c) { return c.toUpperCase(); });\n                return { action: actionLabel, zone: null };\n            }\n\n            var zone = parts.pop();\n            var action = parts.join(' ');\n\n            var actionLabel = action.replace(/-/g, ' ').replace(/\\b\\w/g, function (c) { return c.toUpperCase(); });\n            var zoneLabel = zone.replace(/-/g, ' ').replace(/\\b\\w/g, function (c) { return c.toUpperCase(); });\n\n            return {\n                action: actionLabel,\n                zone: zoneLabel\n            };\n        });\n}\n\n// Store in the flow context based on the incoming message topic\nif (msg.topic && msg.topic.indexOf('current_plan') !== -1) {\n    flow.set('current_plan', parsePlan(msg.payload));\n} else if (msg.topic && msg.topic.indexOf('last_plan') !== -1) {\n    flow.set('last_plan', parsePlan(msg.payload));\n}\n\n// Retrieve the structured plans (default to empty array if nothing is stored)\nvar current = flow.get('current_plan') || [];\nvar last = flow.get('last_plan') || [];\n\n// Send a single structured object to the template\nmsg.payload = {\n    current: current,\n    last: last\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 550,
+        "y": 540,
+        "wires": [
+            [
+                "14bd061a568cf24f"
+            ]
+        ]
+    },
+    {
+        "id": "14bd061a568cf24f",
+        "type": "ui-template",
+        "z": "tab_dashboard",
+        "group": "g_plan",
+        "page": "",
+        "ui": "",
+        "name": "",
+        "order": 0,
+        "width": "5",
+        "height": "7",
+        "head": "",
+        "format": "<template>\n    <div class=\"plan-container\">\n        <!-- Current Action Plan Section -->\n        <div class=\"plan-section\">\n            <h3 class=\"plan-title text-primary\">Current Action Plan</h3>\n            \n            <div v-if=\"!msg.payload.current || msg.payload.current.length === 0\" class=\"no-plan\">\n                No active plan available\n            </div>\n            \n            <ul v-else class=\"plan-list\">\n                <li v-for=\"(item, index) in msg.payload.current\" :key=\"'curr-' + index\" class=\"plan-item\">\n                    <span class=\"action-text\">{{ item.action }}</span>\n                    <span v-if=\"item.zone\" class=\"zone-badge\">{{ item.zone }}</span>\n                </li>\n            </ul>\n        </div>\n\n        <hr class=\"section-divider\" />\n\n        <!-- Previous Plan Section -->\n        <div class=\"plan-section\">\n            <h3 class=\"plan-title text-secondary\">Last Plan</h3>\n            \n            <div v-if=\"!msg.payload.last || msg.payload.last.length === 0\" class=\"no-plan\">\n                No last plan available\n            </div>\n            \n            <ul v-else class=\"plan-list\">\n                <li v-for=\"(item, index) in msg.payload.last\" :key=\"'last-' + index\" class=\"plan-item\">\n                    <span class=\"action-text\">{{ item.action }}</span>\n                    <span v-if=\"item.zone\" class=\"zone-badge\">{{ item.zone }}</span>\n                </li>\n            </ul>\n        </div>\n    </div>\n</template>\n\n<style scoped>\n    .plan-container {\n        font-family: var(--v-font-family, sans-serif);\n        padding: 8px;\n    }\n    \n    .plan-section {\n        margin-bottom: 16px;\n    }\n    \n    .plan-title {\n        font-size: 1.15rem;\n        font-weight: 600;\n        margin-top: 0;\n        margin-bottom: 12px;\n    }\n    \n    .text-primary {\n        color: var(--v-theme-primary, #1976d2); /* Adapts to your dashboard primary theme color */\n    }\n    \n    .text-secondary {\n        color: var(--v-theme-on-surface-variant, #666);\n    }\n    \n    .no-plan {\n        font-style: italic;\n        color: #888;\n        padding-left: 4px;\n    }\n    \n    .plan-list {\n        list-style-type: none;\n        padding: 0;\n        margin: 0;\n    }\n    \n    .plan-item {\n        display: flex;\n        justify-content: space-between;\n        align-items: center;\n        padding: 8px 12px;\n        margin-bottom: 6px;\n        background-color: var(--v-theme-surface-variant, #f5f5f5);\n        border-radius: 6px;\n        border-left: 4px solid var(--v-theme-primary, #1976d2);\n    }\n    \n    /* The previous plan list uses a more neutral accent color */\n    .text-secondary + .plan-list .plan-item {\n        border-left-color: #9e9e9e;\n    }\n    \n    .action-text {\n        font-weight: 500;\n        color: var(--v-theme-on-surface, #333);\n    }\n    \n    .zone-badge {\n        font-size: 0.75rem;\n        background-color: var(--v-theme-surface, #e0e0e0);\n        color: var(--v-theme-on-surface, #555);\n        padding: 3px 8px;\n        border-radius: 12px;\n        font-weight: bold;\n        text-transform: uppercase;\n        letter-spacing: 0.5px;\n    }\n    \n    .section-divider {\n        border: 0;\n        border-top: 1px dashed var(--v-theme-border, #ddd);\n        margin: 20px 0;\n    }\n</style>",
+        "storeOutMessages": true,
+        "passthru": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 780,
+        "y": 580,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "broker_local",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "g_state",
+        "type": "ui-group",
+        "name": "System State",
+        "page": "ui_page",
+        "width": 12,
+        "height": 1,
+        "order": 1,
+        "showTitle": false,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_sensors",
+        "type": "ui-group",
+        "name": "Sensor Readings",
+        "page": "ui_page",
+        "width": 6,
+        "height": 1,
+        "order": 2,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_history",
+        "type": "ui-group",
+        "name": "Historical Data",
+        "page": "ui_page",
+        "width": 6,
+        "height": 1,
+        "order": 3,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_notify",
+        "type": "ui-group",
+        "name": "Notifications",
+        "page": "ui_page",
+        "width": 6,
+        "height": 1,
+        "order": 4,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "g_plan",
+        "type": "ui-group",
+        "name": "AI Planning",
+        "page": "ui_page",
+        "width": "5",
+        "height": 1,
+        "order": 5,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "ui_page",
+        "type": "ui-page",
+        "name": "Smart Battery Warehouse",
+        "ui": "ui_base",
+        "path": "/",
+        "icon": "mdi-warehouse",
+        "layout": "grid",
+        "theme": "ui_theme",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": 0,
+                "cols": 3
+            },
+            {
+                "name": "Tablet",
+                "px": 576,
+                "cols": 6
+            },
+            {
+                "name": "Small Desktop",
+                "px": 768,
+                "cols": 9
+            },
+            {
+                "name": "Desktop",
+                "px": 1024,
+                "cols": 12
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": true,
+        "disabled": false
+    },
+    {
+        "id": "ui_base",
+        "type": "ui-base",
+        "name": "Smart Warehouse UI",
+        "path": "/dashboard",
+        "includeClientData": true,
+        "acceptsClientConfig": [],
+        "showPathInSidebar": false
+    },
+    {
+        "id": "ui_theme",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        }
+    },
+    {
+        "id": "f311bb91cd582b50",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "@flowfuse/node-red-dashboard": "1.30.2"
+        }
+    }
+]

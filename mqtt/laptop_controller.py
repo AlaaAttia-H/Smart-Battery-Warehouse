@@ -1,10 +1,25 @@
 """
 Laptop MQTT controller using AI planning.
 """
-
+import os
+import sys
 import time
 
 import paho.mqtt.client as mqtt
+
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+SRC_PATH = os.path.join(PROJECT_ROOT, "raspberry-pi", "src")
+
+print("SRC PATH:", SRC_PATH)
+print("Exists:", os.path.exists(SRC_PATH))
+
+sys.path.insert(0, SRC_PATH)
+
+
+from notifications.ntfy_sender import send_ntfy_notification
+
 
 from config.config_loader import get_mqtt_broker_host, get_mqtt_broker_port
 from executor.plan_executor import execute_plan
@@ -23,6 +38,7 @@ MIN_SECONDS_BETWEEN_PLANS = 3
 
 class LaptopController:
     def __init__(self):
+        self.last_risk_level = None
         self.broker = BROKER
         self.port = PORT
 

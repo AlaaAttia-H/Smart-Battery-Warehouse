@@ -1,12 +1,11 @@
 """
 Raspberry Pi MQTT hardware node.
 """
-
 import random
 import time
 
 import paho.mqtt.client as mqtt
-import smbus2
+#import smbus2
 
 from hardware.grove_inputs import pin_mode, read_dht, read_button
 from hardware.grove_outputs import GroveBuzzer
@@ -76,11 +75,18 @@ class RaspberryPiHardwareNode:
         self.last_button_toggle_time = 0
 
     def open_bus(self):
+        if SIMULATION_MODE:
+            return None
+        import smbus2
         bus = smbus2.SMBus(1)
         time.sleep(1)
         return bus
 
     def setup_hardware(self):
+        if SIMULATION_MODE:
+            print("[SIMULATION] Skipping hardware setup")
+            return
+
         print("[SYSTEM] Initialising hardware...")
 
         self.bus = self.open_bus()
@@ -95,8 +101,10 @@ class RaspberryPiHardwareNode:
         self.buzzer = GroveBuzzer(pin=BUZZER_PIN)
         self.buzzer.update_bus(self.bus)
 
-        # Safe initial state
-        self.fan.set_speed(0)
+        if SIMULATION_MODE:
+            print("[SIM] Fan OFF")
+        else:
+            self.fan.set_speed(0)
         self.servo.set_position(90)
         self.led.set_color(0, 0, 0)
         self.buzzer.stop_siren()
@@ -149,14 +157,22 @@ class RaspberryPiHardwareNode:
             self.fan.set_speed(70)
 
         elif command in ["OFF", "STOP", "0", "FALSE"]:
-            self.fan.set_speed(0)
+            if SIMULATION_MODE:
+                print("[SIM] Fan OFF")
+            else:
+                self.fan.set_speed(0)
 
         else:
             speed = float(command)
             self.fan.set_speed(speed)
 
     def handle_buzzer_command(self, command):
+        
         command = command.upper()
+
+        if SIMULATION_MODE:
+            print(f"[SIM] Buzzer -> {command}")
+            return
 
         if command in ["ON", "START", "SIREN", "ALARM", "1", "TRUE"]:
             self.buzzer.start_siren()
@@ -166,6 +182,9 @@ class RaspberryPiHardwareNode:
 
     def handle_led_command(self, command):
         command = command.upper()
+        if SIMULATION_MODE:
+            print(f"[SIM] LED -> {command}")
+            return
 
         colors = {
             "OFF": (0, 0, 0),
@@ -190,6 +209,10 @@ class RaspberryPiHardwareNode:
 
     def handle_shutter_command(self, command):
         command = command.upper()
+
+        if SIMULATION_MODE:
+            print(f"[SIM] Shutter -> {command}")
+            return
 
         if command in ["OPEN", "UP"]:
             self.servo.set_position(90)
@@ -306,7 +329,12 @@ class RaspberryPiHardwareNode:
 
     def run(self):
         try:
-            self.setup_hardware()
+            if not SIMULATION_MODE:
+                self.setup_hardware()
+            else:
+                print("[SIMULATION] Running without Raspberry Pi hardware.")
+
+            # Always connect to MQTT
             self.setup_mqtt()
 
             print("[SYSTEM] Raspberry Pi MQTT hardware node running")
@@ -322,11 +350,23 @@ class RaspberryPiHardwareNode:
             self.cleanup()
 
     def cleanup(self):
+
+        if self.client:
+            self.client.loop_stop()
+            self.client.disconnect()
+
+        if SIMULATION_MODE:
+            print("[SIMULATION] Finished.")
+            return
+        
         print("[SYSTEM] Cleaning up...")
 
         try:
             if self.fan:
-                self.fan.set_speed(0)
+                if SIMULATION_MODE:
+                    print("[SIM] Fan OFF")
+                else:
+                    self.fan.set_speed(0)
                 self.fan.stop()
 
             if self.servo:
