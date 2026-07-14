@@ -1,12 +1,10 @@
 # Smart Battery Warehouse Monitoring and Response System
 
-## 1. Project Overview
+## Overview
 
-This project implements a Smart Battery Warehouse Monitoring and Response System.
+This project implements a smart battery warehouse system using IoT sensing, MQTT communication, AI planning, actuator control, dashboard visualisation, and manager notifications.
 
-The system monitors a battery storage warehouse, calculates the current risk level, generates an AI plan, executes actuator commands, updates a dashboard, and sends manager notifications.
-
-Main monitored values:
+The system monitors:
 
 ```text
 temperature
@@ -16,238 +14,195 @@ occupancy
 battery_status
 ```
 
-Main response actions:
+The system controls:
 
 ```text
-fan control
-buzzer alarm
-RGB LED warning
-shutter/servo control
-dashboard update
-manager notification
+fan
+buzzer
+RGB LED
+shutter/servo
+manager notifications
+dashboard updates
 ```
 
-## 2. System Architecture
-
-```text
-Raspberry Pi
-    - runs Mosquitto MQTT broker
-    - runs Raspberry Pi hardware node
-    - reads sensors and software input files
-    - controls fan, buzzer, LED, and shutter
-    - runs Node-RED dashboard server
-
-Laptop
-    - runs laptop AI controller
-    - receives sensor values through MQTT
-    - calculates context
-    - generates PDDL problem
-    - runs Fast Downward planner
-    - executes plan through MQTT commands
-    - sends manager notifications
-
-Manager device
-    - opens Node-RED dashboard
-    - receives ntfy notifications
-```
-
-## 3. Repository Structure
+## Final Folder Structure
 
 ```text
 Smart-Battery-Warehouse/
 ├── README.md
-│
-├── config/
-│   ├── __init__.py
-│   ├── config.json
-│   └── config_loader.py
-│
-├── dashboard/
-│   ├── README.md
-│   └── flows.json
-│
-├── executor/
-│   ├── __init__.py
-│   └── plan_executor.py
-│
-├── knowledge_base/
-│   ├── __init__.py
-│   └── warehouse_kb.py
-│
 ├── laptop/
 │   ├── README.md
-│   ├── __init__.py
-│   └── main.py
-│
-├── mqtt/
+│   └── src/
+│       ├── main.py
+│       ├── config/
+│       ├── executor/
+│       ├── knowledge_base/
+│       ├── mqtt/
+│       ├── notifications/
+│       ├── planner/
+│       └── processor/
+├── raspberry-pi/
 │   ├── README.md
-│   ├── __init__.py
-│   ├── laptop_controller.py
-│   └── topics.py
-│
-├── notifications/
-│   ├── README.md
-│   ├── __init__.py
-│   ├── ntfy_sender.py
-│   ├── notification_manager.py
-│   └── test_notifications.py
-│
-├── planner/
-│   ├── README.md
-│   ├── __init__.py
-│   ├── ai_planner.py
-│   ├── domain.pddl
-│   └── problem_generator.py
-│
-├── processor/
-│   ├── __init__.py
-│   └── context_processor.py
-│
-└── raspberry-pi/
+│   └── src/
+│       ├── main.py
+│       ├── battery_input.py
+│       ├── hardware/
+│       └── mqtt/
+└── dashboard/
     ├── README.md
-    └── src/
-        ├── main.py
-        ├── battery_input.py
-        ├── occupancy_input.py
-        ├── hardware/
-        │   ├── grove_inputs.py
-        │   ├── grove_outputs.py
-        │   └── pi_direct.py
-        └── mqtt/
-            ├── rpi_hardware_node.py
-            └── topics.py
+    └── flows.json
 ```
 
-## 4. Main Setup Order From the Beginning
+## Component Responsibilities
 
-Follow this order when setting up the full system.
-
-### Step 1: Prepare the Raspberry Pi
-
-Set up the Raspberry Pi first because it runs the MQTT broker and the hardware node.
-
-See:
+### Raspberry Pi
 
 ```text
-raspberry-pi/README.md
+runs Mosquitto MQTT broker
+runs the hardware node
+reads DHT temperature/humidity
+reads MQ2 gas status
+reads Grove button occupancy
+reads battery value from JSON input
+controls fan, buzzer, RGB LED, and shutter
+runs Node-RED dashboard server
 ```
 
-Main tasks:
+### Laptop
 
 ```text
-1. Connect Raspberry Pi to the same network as the laptop.
-2. Install/start Mosquitto MQTT broker.
-3. Create the Raspberry Pi project folder.
-4. Copy Raspberry Pi code to the Pi.
-5. Start the Raspberry Pi hardware node.
-6. Start battery and occupancy input scripts if needed.
+receives sensor values through MQTT
+calculates risk level and battery condition
+generates PDDL problem files
+runs Fast Downward
+executes planner actions through MQTT
+sends ntfy notifications
+publishes dashboard context and plan topics
 ```
 
-### Step 2: Prepare the Laptop Controller
-
-Set up the laptop Python environment.
-
-See:
+### Dashboard
 
 ```text
-laptop/README.md
+subscribes to MQTT topics
+shows live sensor values
+shows risk level and system state
+shows current and previous AI plans
+shows notifications and actuator states
 ```
 
-Main tasks:
+## Behaviour Logic
+
+### Risk Levels
 
 ```text
-1. Create a Python virtual environment.
-2. Install required Python packages.
-3. Set the Raspberry Pi broker IP in config/config.json.
-4. Run the laptop controller.
+LOW: normal condition
+MEDIUM: temperature or humidity warning condition
+HIGH: gas alert or dangerous condition
 ```
 
-### Step 3: Set Up the AI Planner
-
-Set up Fast Downward and configure the planner path.
-
-See:
+### Fan Logic
 
 ```text
-planner/README.md
+MEDIUM risk -> fan ON
+HIGH risk -> fan is not started
+LOW risk -> fan OFF
 ```
 
-Main tasks:
+### High Risk Logic
+
+When `risk_level = HIGH`:
 
 ```text
-1. Download Fast Downward.
-2. Build Fast Downward.
-3. Test that Fast Downward runs.
-4. Add the planner path to config/config.json.
-5. Test the PDDL problem generator and planner.
+buzzer gives two short beeps
+LED becomes RED
+manager receives high-risk notification
+dashboard is updated
 ```
 
-### Step 4: Set Up Notifications
-
-Set up ntfy notifications.
-
-See:
+If occupancy is present:
 
 ```text
-notifications/README.md
+occupancy = 1
+→ evacuation notification is generated
+→ shutter does not close
 ```
 
-Main tasks:
+If no occupancy is present:
 
 ```text
-1. Install Python requests package.
-2. Choose or confirm the ntfy topic.
-3. Subscribe to the topic on the phone.
-4. Run the notification test.
+occupancy = 0
+→ shutter closes
 ```
 
-### Step 5: Set Up Dashboard
-
-Set up Node-RED and Dashboard 2 on the Raspberry Pi.
-
-See:
+So the shutter closes only when:
 
 ```text
-dashboard/README.md
+risk_level = HIGH
+occupancy = 0
 ```
 
-Main tasks:
+### Occupancy and Shutter Planning
+
+This is handled in the problem generator, not in the executor.
 
 ```text
-1. Install/start Node-RED.
-2. Install Dashboard 2.
-3. Import dashboard flow.
-4. Configure MQTT nodes to connect to localhost:1883.
-5. Open the dashboard page from a browser.
+HIGH + occupancy = 1
+→ do not generate close-shutter
+
+HIGH + occupancy = 0
+→ generate close-shutter
 ```
 
-### Step 6: Run the Full System
-
-Recommended run order:
+This keeps the components separate:
 
 ```text
-1. Start Mosquitto on Raspberry Pi.
-2. Start Node-RED dashboard on Raspberry Pi.
-3. Start Raspberry Pi hardware node.
-4. Start battery input script if needed.
-5. Start occupancy input script if needed.
-6. Start laptop AI controller.
-7. Open dashboard.
-8. Test demo scenarios.
+problem_generator.py decides what actions are needed
+executor.py only publishes MQTT commands
+Raspberry Pi only executes actuator commands
 ```
 
-## 5. Full System Run Commands
+### Buzzer Logic
 
-### On Raspberry Pi
+The buzzer should not stay on continuously.
 
-Terminal 1:
+For a buzzer ON command:
+
+```text
+two short beeps
+then automatically OFF
+```
+
+### Battery Condition
+
+```text
+NORMAL: battery_status >= 50
+LOW: 20 <= battery_status < 50
+CRITICAL: battery_status < 20
+```
+
+Battery notifications are separate from high-risk environmental notifications.
+
+## Notification Meanings
+
+```text
+notify-manager: environmental high-risk alert
+request-evacuation: high risk while occupancy is present
+send-battery-warning: battery level is low
+request-battery-maintenance: battery level is critical
+```
+
+`notify-manager` is not a generic notification. In this project, it means a HIGH risk warehouse alert.
+
+## Full Run Order
+
+### Raspberry Pi terminal 1
 
 ```bash
 sudo systemctl start mosquitto
 node-red-start
 ```
 
-Terminal 2:
+### Raspberry Pi terminal 2
 
 ```bash
 cd ~/sciot_project
@@ -255,7 +210,7 @@ source venv/bin/activate
 python main.py
 ```
 
-Terminal 3, optional battery input:
+### Raspberry Pi terminal 3, optional battery input
 
 ```bash
 cd ~/sciot_project
@@ -263,74 +218,51 @@ source venv/bin/activate
 python battery_input.py
 ```
 
-Terminal 4, optional occupancy input:
-
-```bash
-cd ~/sciot_project
-source venv/bin/activate
-python occupancy_input.py
-```
-
-### On Laptop
+### Laptop terminal
 
 From the project root:
 
 ```powershell
-.\venv\Scripts\activate
-python -m laptop.main
+cd laptop/src
+python main.py
 ```
 
-### Open Dashboard
-
-Use the Raspberry Pi IP:
+### Dashboard
 
 ```text
 http://<RASPBERRY_PI_IP>:1880/dashboard
 ```
 
-Example:
+## Demo Scenarios
 
-```text
-http://192.168.137.70:1880/dashboard
-```
-
-## 6. Demo Scenarios
-
-### Normal Scenario
-
-Input:
+### Normal
 
 ```text
 gas_status = OK
-temperature < 29
-humidity < 30
-battery_status = 80
 occupancy = 0
+battery_status = 90
+temperature and humidity normal
 ```
 
-Expected result:
+Expected:
 
 ```text
 risk_level = LOW
 system_state = NORMAL
-battery_condition = NORMAL
 LED = GREEN
 fan = OFF
 buzzer = OFF
 shutter = OPEN
 ```
 
-### Medium Risk Scenario
-
-Input:
+### Medium Risk
 
 ```text
-temperature >= 29
-OR humidity >= 30
+temperature or humidity above warning threshold
 gas_status = OK
 ```
 
-Expected result:
+Expected:
 
 ```text
 risk_level = MEDIUM
@@ -341,67 +273,83 @@ buzzer = OFF
 shutter = OPEN
 ```
 
-### High Risk Scenario
-
-Input:
+### High Risk With Occupancy
 
 ```text
 gas_status = ALERT
-OR temperature >= 40
-OR humidity >= 45 and occupancy = 1
+occupancy = 1
 ```
 
-Expected result:
+Expected:
 
 ```text
 risk_level = HIGH
 system_state = EMERGENCY
 LED = RED
-fan = ON
-buzzer = ON
-shutter = CLOSE
-manager notification sent
+buzzer gives two beeps
+manager receives high-risk notification
+evacuation notification is sent
+shutter stays open
 ```
 
-### Battery Warning Scenario
+### High Risk Without Occupancy
 
-Input:
+```text
+gas_status = ALERT
+occupancy = 0
+```
+
+Expected:
+
+```text
+risk_level = HIGH
+system_state = EMERGENCY
+LED = RED
+buzzer gives two beeps
+manager receives high-risk notification
+shutter closes
+```
+
+### Occupancy Clears During High Risk
+
+```text
+gas_status = ALERT
+occupancy changes from 1 to 0
+```
+
+Expected:
+
+```text
+laptop detects occupancy change
+new PDDL problem is generated
+new plan includes close-shutter
+shutter closes
+```
+
+### Battery Low
 
 ```text
 battery_status = 40
 ```
 
-Expected result:
+Expected:
 
 ```text
 battery_condition = LOW
-send-battery-warning action appears in plan
-manager receives battery warning notification
+send-battery-warning appears in plan
+manager receives battery warning
 ```
 
-### Critical Battery Scenario
-
-Input:
+### Battery Critical
 
 ```text
 battery_status = 10
 ```
 
-Expected result:
+Expected:
 
 ```text
 battery_condition = CRITICAL
-request-battery-maintenance action appears in plan
+request-battery-maintenance appears in plan
 manager receives critical battery notification
-```
-
-## 7. Important Notes
-
-```text
-Mosquitto broker runs on Raspberry Pi.
-Node-RED dashboard runs on Raspberry Pi.
-Raspberry Pi hardware node runs on Raspberry Pi.
-Fast Downward runs on the laptop.
-Laptop AI controller runs on the laptop.
-Manager dashboard can be opened from any device on the same network.
 ```
