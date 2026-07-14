@@ -101,7 +101,7 @@ PLANNER_ACTION_TO_MQTT = {
     },
     "send-battery-warning": {
         "topic": topics.NOTIFICATION_MANAGER,
-        "payload": "Battery level is low. Manager warning sent.",
+        "payload": "Battery level is low. Please check on the battery charging.",
     },
     "request-battery-maintenance": {
         "topic": topics.NOTIFICATION_MANAGER,

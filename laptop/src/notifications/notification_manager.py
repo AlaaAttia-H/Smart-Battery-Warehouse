@@ -15,15 +15,15 @@ NOTIFICATION_RULES = {
     },
     "request-evacuation": {
         "title": "Evacuation Requested",
-        "priority": "urgent",
+        "priority": "high",
     },
     "send-battery-warning": {
         "title": "Battery Warning",
-        "priority": "high",
+        "priority": "default",
     },
     "request-battery-maintenance": {
         "title": "Critical Battery Condition",
-        "priority": "urgent",
+        "priority": "default",
     },
 }
 
