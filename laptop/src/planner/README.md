@@ -1,210 +1,122 @@
-# AI Planner Setup
+# Planner README
 
-This README explains how to set up and test the AI planner.
+The planner uses PDDL and Fast Downward.
 
-The project uses:
-
-```text
-PDDL domain and problem files
-Fast Downward classical planner
-Python wrapper to run the planner
-```
-
-## 1. Planner Folder Contents
+## Folder
 
 ```text
-planner/
+laptop/src/planner/
 ├── README.md
-├── __init__.py
 ├── ai_planner.py
 ├── domain.pddl
-├── generated_problem.pddl
-└── problem_generator.py
+├── problem_generator.py
+└── generated_problem.pddl
 ```
 
-## 2. Download Fast Downward
+## Fast Downward Setup
 
-Download Fast Downward from its official source and extract it to a folder on your computer.
-
-Example folder structure:
+Official Fast Downward links:
 
 ```text
-tools/
-└── fast-downward/
-    ├── fast-downward.py
-    ├── build.py
-    └── ...
+Main website:
+https://www.fast-downward.org/
+
+Latest releases / download:
+https://www.fast-downward.org/latest/releases/
+
+Quick start documentation:
+https://www.fast-downward.org/latest/documentation/quick-start/
+
+Windows installation guide:
+https://www.fast-downward.org/latest/for-developers/blog/install-on-windows/
 ```
 
-The exact folder location does not matter, but you must remember the path to:
+Download the latest release from the official releases page and extract it to any folder on the laptop.
+
+Example folder:
+
+```text
+C:/tools/fast-downward/
+```
+
+The important file is:
 
 ```text
 fast-downward.py
 ```
 
-## 3. Build Fast Downward on Windows
-
-Open:
-
-```text
-Developer PowerShell for Visual Studio
-```
-
-or:
-
-```text
-x64 Native Tools Command Prompt for Visual Studio
-```
-
-Go to the Fast Downward folder:
+Build it from Developer PowerShell or x64 Native Tools Command Prompt:
 
 ```powershell
 cd "<PATH_TO_FAST_DOWNWARD_FOLDER>"
-```
-
-Build:
-
-```powershell
 py build.py
-```
-
-Test:
-
-```powershell
 py fast-downward.py --help
 ```
 
-If the help text appears, Fast Downward is working.
-
-## 4. Add Planner Path to Config
-
-Open:
+Then set the path in:
 
 ```text
-config/config.json
+laptop/src/config/config.json
 ```
-
-Set:
 
 ```json
-"planner": {
-  "fast_downward_path": "<PATH_TO_FAST_DOWNWARD_FOLDER>/fast-downward.py",
-  "plan_output_path": "planner/generated_plan.txt"
-}
+"fast_downward_path": "<PATH_TO_FAST_DOWNWARD_FOLDER>/fast-downward.py"
 ```
 
-Example format:
+Use forward slashes `/` in the JSON path. Do not commit a personal machine-specific path if the repository is shared.
 
-```json
-"planner": {
-  "fast_downward_path": "C:/tools/fast-downward/fast-downward.py",
-  "plan_output_path": "planner/generated_plan.txt"
-}
-```
+## Planner Responsibility
 
-Use forward slashes `/` in the JSON path.
+The planner decides what actions are needed.
 
-## 5. Test Problem Generation
-
-From the project root:
-
-```powershell
-.\venv\Scripts\activate
-python -m planner.problem_generator
-```
-
-This should create or update:
+The executor should not contain special rules like:
 
 ```text
-planner/generated_problem.pddl
+waiting for occupancy
+checking sensors directly
+dashboard formatting
+hardware-specific safety logic
 ```
 
-## 6. Test AI Planner
-
-From the project root:
-
-```powershell
-python -m planner.ai_planner
-```
-
-Expected result:
+## High Risk Rule
 
 ```text
-Planner runs
-Plan is printed in terminal
-planner/generated_plan.txt is created
-```
-
-## 7. Planner Flow
-
-```text
-sensor data
-    ↓
-context_processor.py
-    ↓
-problem_generator.py
-    ↓
-domain.pddl + generated_problem.pddl
-    ↓
-ai_planner.py
-    ↓
-generated_plan.txt
-    ↓
-plan_executor.py
-```
-
-## 8. Main Planner Actions
-
-```text
-start-fan
-stop-fan
+HIGH risk + occupancy = 1:
 activate-alarm
-deactivate-alarm
 set-red-light
-set-orange-light
-set-green-light
-open-shutter
-close-shutter
 notify-manager
 request-evacuation
-send-battery-warning
-request-battery-maintenance
+update-dashboard
+do not close shutter
+
+HIGH risk + occupancy = 0:
+activate-alarm
+set-red-light
+notify-manager
+close-shutter
 update-dashboard
 ```
 
-## 9. Common Problems
-
-### Fast Downward path is wrong
-
-Check:
+## Fan Rule
 
 ```text
-config/config.json
+MEDIUM risk -> start-fan
+HIGH risk -> do not start fan
+LOW risk -> stop-fan
 ```
 
-The path must point to:
+## Battery Rule
 
 ```text
-fast-downward.py
+LOW battery -> send-battery-warning
+CRITICAL battery -> request-battery-maintenance
 ```
 
-### Windows cannot execute fast-downward.py
+## Test
 
-The Python wrapper should run Fast Downward using Python, not by executing the `.py` file directly.
+From `laptop/src`:
 
-The command should behave like:
-
-```text
-python fast-downward.py ...
+```powershell
+python -m planner.problem_generator
+python -m planner.ai_planner
 ```
-
-### No plan generated
-
-Check:
-
-```text
-planner/domain.pddl
-planner/generated_problem.pddl
-```
-
-Make sure the generated problem has reachable goals.
