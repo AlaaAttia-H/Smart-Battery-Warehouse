@@ -220,8 +220,8 @@ __marimo__/
 
 # Generated planning/runtime files
 runtime/
-planner/generated_plan.txt
-planner/sas_plan
+laptop/src/planner/generated_problem.pddl
+laptop/src/planner/generated_plan.txt
 
 # Logs
 *.log
