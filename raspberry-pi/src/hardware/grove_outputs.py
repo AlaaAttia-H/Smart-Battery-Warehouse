@@ -51,6 +51,32 @@ class GroveBuzzer:
             self._write(0)
             time.sleep(0.4)
 
+    def turn_on(self):
+        self._siren_running = False
+
+        if self._thread:
+            self._thread.join(timeout=1.0)
+            self._thread = None
+
+        for _ in range(2):
+            self._write(1)
+            time.sleep(0.08)
+            self._write(0)
+            time.sleep(0.25)
+
+        print("[BUZZER] Two beeps")
+
+
+    def turn_off(self):
+        self._siren_running = False
+
+        if self._thread:
+            self._thread.join(timeout=1.0)
+            self._thread = None
+
+        self._write(0)
+        print("[BUZZER] OFF")
+
     def __enter__(self):
         return self
 

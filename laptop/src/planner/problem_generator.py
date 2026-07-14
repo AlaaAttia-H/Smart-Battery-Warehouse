@@ -37,24 +37,24 @@ def generate_problem(context, output_path=GENERATED_PROBLEM_PATH):
 
     if risk_level == "HIGH":
         init_facts.extend([
-            make_fact("needs-ventilation", battery_zone),
             make_fact("needs-alarm", battery_zone),
             make_fact("needs-red-light", manager_zone),
-            make_fact("needs-shutter-closed", manager_zone),
             make_fact("needs-manager-notification", manager_zone),
         ])
 
         goal_facts.extend([
-            make_fact("fan-on", battery_zone),
             make_fact("alarm-on", battery_zone),
             make_fact("red-light-on", manager_zone),
-            make_fact("shutter-closed", manager_zone),
             make_fact("manager-notified", manager_zone),
         ])
 
         if occupancy > 0:
             init_facts.append(make_fact("needs-evacuation", manager_zone))
             goal_facts.append(make_fact("evacuation-requested", manager_zone))
+
+        else:
+            init_facts.append(make_fact("needs-shutter-closed", manager_zone))
+            goal_facts.append(make_fact("shutter-closed", manager_zone))
 
     elif risk_level == "MEDIUM":
         init_facts.extend([

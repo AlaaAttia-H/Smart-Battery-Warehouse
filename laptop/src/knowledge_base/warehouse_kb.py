@@ -93,7 +93,7 @@ PLANNER_ACTION_TO_MQTT = {
     },
     "notify-manager": {
         "topic": topics.NOTIFICATION_MANAGER,
-        "payload": "Warehouse high risk detected.",
+        "payload": "EMERGENCY: Dangerous warehouse condition detected.",
     },
     "request-evacuation": {
         "topic": topics.NOTIFICATION_MANAGER,

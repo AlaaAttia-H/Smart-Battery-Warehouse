@@ -1,17 +1,16 @@
 """
 Raspberry Pi MQTT hardware node.
 """
-import random
+
+import json
 import time
+from pathlib import Path
 
 import paho.mqtt.client as mqtt
-#import smbus2
 
-from hardware.grove_inputs import pin_mode, read_dht, read_button
+from hardware.grove_inputs import pin_mode, read_button, read_dht
 from hardware.grove_outputs import GroveBuzzer
 from hardware.pi_direct import DCFan, MQ2Sensor, RGBLed, Servo
-import json
-from pathlib import Path
 
 from mqtt.topics import (
     ACTUATOR_BUZZER_COMMAND,
@@ -27,7 +26,7 @@ from mqtt.topics import (
 )
 
 
-# GrovePi / sensor configuration
+# GrovePi configuration
 DHT_PIN = 4
 DHT_TYPE = 0
 
@@ -39,14 +38,19 @@ BUTTON_ACTIVE_LOW = False
 
 # Direct Raspberry Pi GPIO configuration
 SERVO_PIN = 22
+SERVO_OPEN_ANGLE = 90
+SERVO_CLOSE_ANGLE = 20
+SERVO_HALF_ANGLE = 45
+
+SERVO_STEP = 2
+SERVO_STEP_DELAY = 0.03
 MQ2_PIN = 27
 
 LED_R_PIN = 25
 LED_G_PIN = 24
 LED_B_PIN = 23
 
-# Battery is still simulated because we do not have a real battery sensor.
-SIMULATE_BATTERY = False
+# Battery input file
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BATTERY_STATE_FILE = PROJECT_ROOT / "runtime" / "battery_state.json"
 DEFAULT_BATTERY_STATUS = 100
@@ -63,35 +67,37 @@ class RaspberryPiHardwareNode:
 
         self.fan = None
         self.servo = None
+        self.current_servo_angle = SERVO_OPEN_ANGLE
         self.mq2 = None
         self.led = None
         self.buzzer = None
 
-        self.simulated_battery = 100
-
-        # Used for button-based occupancy
         self.occupancy = 0
         self.last_button_state = None
         self.last_button_toggle_time = 0
 
     def open_bus(self):
-        if SIMULATION_MODE:
-            return None
         import smbus2
+
         bus = smbus2.SMBus(1)
         time.sleep(1)
         return bus
 
-    def setup_hardware(self):
-        if SIMULATION_MODE:
-            print("[SIMULATION] Skipping hardware setup")
-            return
+    def setup_button(self):
+        try:
+            pin_mode(self.bus, BUTTON_PIN, 0)
+            print(f"[BUTTON] Initialised on Grove D{BUTTON_PIN}")
 
+        except OSError as e:
+            print(f"[BUTTON WARNING] Button setup failed: {e}")
+            print("[BUTTON WARNING] Continuing. Button reads may fail until I2C recovers.")
+
+    def setup_hardware(self):
         print("[SYSTEM] Initialising hardware...")
 
         self.bus = self.open_bus()
 
-        pin_mode(self.bus, BUTTON_PIN, 0)
+        self.setup_button()
 
         self.fan = DCFan()
         self.servo = Servo(gpio_pin=SERVO_PIN)
@@ -101,15 +107,37 @@ class RaspberryPiHardwareNode:
         self.buzzer = GroveBuzzer(pin=BUZZER_PIN)
         self.buzzer.update_bus(self.bus)
 
-        if SIMULATION_MODE:
-            print("[SIM] Fan OFF")
-        else:
-            self.fan.set_speed(0)
-        self.servo.set_position(90)
+        self.fan.set_speed(0)
+        self.move_servo_slowly(SERVO_OPEN_ANGLE)
         self.led.set_color(0, 0, 0)
         self.buzzer.stop_siren()
 
         print("[SYSTEM] Hardware ready")
+
+    def reopen_bus(self):
+        print("[I2C] Reopening I2C bus...")
+
+        try:
+            if self.bus:
+                self.bus.close()
+        except Exception as e:
+            print(f"[I2C WARNING] Could not close bus: {e}")
+
+        time.sleep(2)
+
+        self.bus = self.open_bus()
+        time.sleep(1)
+
+        try:
+            pin_mode(self.bus, BUTTON_PIN, 0)
+            print("[I2C] Button reconfigured")
+        except OSError as e:
+            print(f"[BUTTON WARNING] Could not reconfigure button: {e}")
+
+        if self.buzzer:
+            self.buzzer.update_bus(self.bus)
+
+        print("[I2C] Bus reopened")
 
     def setup_mqtt(self):
         print(f"[MQTT] Connecting to broker at {self.broker}:{self.port}")
@@ -150,6 +178,10 @@ class RaspberryPiHardwareNode:
         except Exception as e:
             print(f"[MQTT ERROR] Could not handle command: {e}")
 
+    def publish(self, topic, value):
+        if self.client:
+            self.client.publish(topic, str(value))
+
     def handle_fan_command(self, command):
         command = command.upper()
 
@@ -157,34 +189,23 @@ class RaspberryPiHardwareNode:
             self.fan.set_speed(70)
 
         elif command in ["OFF", "STOP", "0", "FALSE"]:
-            if SIMULATION_MODE:
-                print("[SIM] Fan OFF")
-            else:
-                self.fan.set_speed(0)
+            self.fan.set_speed(0)
 
         else:
             speed = float(command)
             self.fan.set_speed(speed)
 
     def handle_buzzer_command(self, command):
-        
         command = command.upper()
 
-        if SIMULATION_MODE:
-            print(f"[SIM] Buzzer -> {command}")
-            return
-
         if command in ["ON", "START", "SIREN", "ALARM", "1", "TRUE"]:
-            self.buzzer.start_siren()
+            self.buzzer.turn_on()
 
         elif command in ["OFF", "STOP", "0", "FALSE"]:
-            self.buzzer.stop_siren()
+            self.buzzer.turn_off()
 
     def handle_led_command(self, command):
         command = command.upper()
-        if SIMULATION_MODE:
-            print(f"[SIM] LED -> {command}")
-            return
 
         colors = {
             "OFF": (0, 0, 0),
@@ -200,32 +221,46 @@ class RaspberryPiHardwareNode:
             self.led.set_color(r, g, b)
             return
 
-        # Also allow RGB format, for example: 255,0,0
         parts = command.split(",")
 
         if len(parts) == 3:
             r, g, b = [int(part.strip()) for part in parts]
             self.led.set_color(r, g, b)
 
+    def move_servo_slowly(self, target_angle):
+        target_angle = max(0, min(180, int(target_angle)))
+        current_angle = int(self.current_servo_angle)
+
+        if current_angle == target_angle:
+            return
+
+        if target_angle > current_angle:
+            step = SERVO_STEP
+        else:
+            step = -SERVO_STEP
+
+        for angle in range(current_angle, target_angle, step):
+            self.servo.set_position(angle)
+            time.sleep(SERVO_STEP_DELAY)
+
+        self.servo.set_position(target_angle)
+        self.current_servo_angle = target_angle
+
     def handle_shutter_command(self, command):
         command = command.upper()
 
-        if SIMULATION_MODE:
-            print(f"[SIM] Shutter -> {command}")
-            return
-
         if command in ["OPEN", "UP"]:
-            self.servo.set_position(90)
+            self.move_servo_slowly(SERVO_OPEN_ANGLE)
 
         elif command in ["CLOSE", "CLOSED", "DOWN"]:
-            self.servo.set_position(0)
+            self.move_servo_slowly(SERVO_CLOSE_ANGLE)
 
         elif command in ["HALF", "MIDDLE"]:
-            self.servo.set_position(45)
+            self.move_servo_slowly(SERVO_HALF_ANGLE)
 
         else:
             angle = float(command)
-            self.servo.set_position(angle)
+            self.move_servo_slowly(angle)
 
     def read_battery_status(self):
         try:
@@ -249,9 +284,6 @@ class RaspberryPiHardwareNode:
             print(f"[BATTERY ERROR] Could not read battery state: {e}")
             return DEFAULT_BATTERY_STATUS
 
-    def publish(self, topic, value):
-        self.client.publish(topic, str(value))
-
     def read_occupancy_from_button(self):
         try:
             raw_value = read_button(self.bus, BUTTON_PIN)
@@ -272,6 +304,7 @@ class RaspberryPiHardwareNode:
                 if now - self.last_button_toggle_time > BUTTON_DEBOUNCE_SECONDS:
                     self.occupancy = 0 if self.occupancy == 1 else 1
                     self.last_button_toggle_time = now
+                    print(f"[BUTTON] Occupancy toggled to {self.occupancy}")
 
             self.last_button_state = current_button_state
             return self.occupancy
@@ -279,6 +312,11 @@ class RaspberryPiHardwareNode:
         except OSError as e:
             print(f"[BUTTON I2C ERROR] {e}")
             return self.occupancy
+
+        except Exception as e:
+            print(f"[BUTTON ERROR] {e}")
+            return self.occupancy
+
     def publish_sensor_data(self):
         try:
             temperature, humidity = read_dht(self.bus, DHT_PIN, DHT_TYPE)
@@ -295,7 +333,6 @@ class RaspberryPiHardwareNode:
             self.publish(SENSOR_OCCUPANCY, occupancy)
             self.publish(SENSOR_BATTERY_STATUS, battery_status)
 
-
             print(
                 f"[SENSORS] T={temperature:.1f}C "
                 f"H={humidity:.1f}% "
@@ -306,35 +343,18 @@ class RaspberryPiHardwareNode:
 
         except OSError as e:
             print(f"[I2C ERROR] {e}")
-            self.reopen_bus()
+
+            try:
+                self.reopen_bus()
+            except Exception as reopen_error:
+                print(f"[I2C ERROR] Recovery failed: {reopen_error}")
 
         except Exception as e:
             print(f"[SENSOR ERROR] {e}")
 
-    def reopen_bus(self):
-        try:
-            if self.bus:
-                self.bus.close()
-        except Exception:
-            pass
-
-        time.sleep(2)
-        self.bus = self.open_bus()
-
-        # Reconfigure Grove digital ports after reopening the I2C bus
-        pin_mode(self.bus, BUTTON_PIN, 0)
-
-        if self.buzzer:
-            self.buzzer.update_bus(self.bus)
-
     def run(self):
         try:
-            if not SIMULATION_MODE:
-                self.setup_hardware()
-            else:
-                print("[SIMULATION] Running without Raspberry Pi hardware.")
-
-            # Always connect to MQTT
+            self.setup_hardware()
             self.setup_mqtt()
 
             print("[SYSTEM] Raspberry Pi MQTT hardware node running")
@@ -350,23 +370,15 @@ class RaspberryPiHardwareNode:
             self.cleanup()
 
     def cleanup(self):
-
-        if self.client:
-            self.client.loop_stop()
-            self.client.disconnect()
-
-        if SIMULATION_MODE:
-            print("[SIMULATION] Finished.")
-            return
-        
         print("[SYSTEM] Cleaning up...")
 
         try:
+            if self.client:
+                self.client.loop_stop()
+                self.client.disconnect()
+
             if self.fan:
-                if SIMULATION_MODE:
-                    print("[SIM] Fan OFF")
-                else:
-                    self.fan.set_speed(0)
+                self.fan.set_speed(0)
                 self.fan.stop()
 
             if self.servo:
@@ -383,10 +395,6 @@ class RaspberryPiHardwareNode:
 
             if self.bus:
                 self.bus.close()
-
-            if self.client:
-                self.client.loop_stop()
-                self.client.disconnect()
 
         except Exception as e:
             print(f"[CLEANUP ERROR] {e}")

@@ -91,7 +91,7 @@ class Servo:
         angle = max(0.0, min(180.0, angle))
         pw = int(self.min_pw + (self.max_pw - self.min_pw) * angle / 180.0)
         self._pi.set_servo_pulsewidth(self.pin, pw)
-        print(f"[SERVO] Position {angle:.1f}°")
+        # print(f"[SERVO] Position {angle:.1f}°")
 
     def stop(self):
         self._pi.set_servo_pulsewidth(self.pin, 0)

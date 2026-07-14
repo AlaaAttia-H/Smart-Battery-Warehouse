@@ -1,7 +1,6 @@
 (deactivate-alarm battery-zone)
 (open-shutter manager-zone)
-(request-battery-maintenance battery-zone)
 (set-green-light manager-zone)
 (stop-fan battery-zone)
 (update-dashboard manager-dashboard)
-; cost = 6 (unit cost)
+; cost = 5 (unit cost)
