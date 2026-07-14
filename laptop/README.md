@@ -78,7 +78,7 @@ From the project root:
 
 ```powershell
 .\venv\Scripts\activate
-python -m laptop.main
+python laptop/src/main.py
 ```
 
 The controller will:
@@ -101,7 +101,7 @@ Run the controller from the project root.
 Use:
 
 ```powershell
-python -m laptop.main
+python laptop/src/main.py
 ```
 
 Do not run package files directly like:
